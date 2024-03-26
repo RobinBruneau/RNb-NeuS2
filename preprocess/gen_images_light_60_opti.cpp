@@ -169,14 +169,13 @@ int main(int argc, char* argv[]) {
 
     //for (int k = 0; k <1; k++) {
     for (int k = 0; k < normalsImages.size(); k++) {
+        std::cout << "[" << k+1 << "/" << normalsImages.size() <<"]" << std::endl;
 
         auto Rotation = jsonToMatrix(all_R[k]);
 
         auto im_normal = normalsImages[k];
         auto im_albedo = albedoImages[k];
         auto im_mask = maskImages[k];
-
-        std::cout << im_normal.at<cv::Vec3f>(18, 303) << std::endl;
 
         cv::Mat im1(im_albedo.rows, im_albedo.cols, CV_16UC3);
         cv::Mat im2(im_albedo.rows, im_albedo.cols, CV_16UC3);
@@ -188,7 +187,6 @@ int main(int argc, char* argv[]) {
 
         Eigen::MatrixXf light_directions_60_world = Rotation.transpose() * u;
 
-        std::cout << im_normal.rows << std::endl;
         // Iterate over each row
         for (int y = 0; y < im_normal.rows; ++y) {
         //for (int y = 18; y <19; ++y) {
@@ -341,28 +339,22 @@ int main(int argc, char* argv[]) {
         lights_60.push_back(light_directions_60_world.col(2)(0));
         lights_60.push_back(light_directions_60_world.col(2)(1));
         lights_60.push_back(light_directions_60_world.col(2)(2));
-        
-        std::cout << "Images saved !" << std::endl;
-        
 
     }
 
     auto end = std::chrono::steady_clock::now();
     auto diff = end - start;
 
-    std::cout << "Elapsed time: " << std::chrono::duration <double, std::milli>(diff).count() << " ms" << std::endl;
-
-
     // Create a JSON object and assign the vector to it
     nlohmann::json json_data = lights;
 
-
+    std::cout << "Saving lights as Json (can take some time)..." << std::endl;
     // Write the JSON to a file
     std::ofstream ff(outputFolder+"/lights.json");
     if (ff.is_open()) {
         ff << json_data; // Dump JSON with indentation for readability
         ff.close();
-        std::cout << "JSON data has been written to output.json" << std::endl;
+
     }
     else {
         std::cerr << "Error: Unable to open file for writing." << std::endl;
@@ -377,12 +369,10 @@ int main(int argc, char* argv[]) {
     if (ff_60.is_open()) {
         ff_60 << json_data_60; // Dump JSON with indentation for readability
         ff_60.close();
-        std::cout << "JSON data has been written to output.json" << std::endl;
     }
     else {
         std::cerr << "Error: Unable to open file for writing." << std::endl;
     }
 
-    
     return 0;
 }

@@ -1,19 +1,17 @@
-# NeuS2: Fast Learning of Neural Implicit Surfaces for Multi-view Reconstruction
-### [[Project]](https://vcai.mpi-inf.mpg.de/projects/NeuS2/)[ [Paper]](https://arxiv.org/abs/2212.05231)
-<br/>
+# RNb-NeuS2
+This is the CUDA official implementation of **RNb-NeuS: Reflectance and Normal-based Multi-View 3D Reconstruction**.
 
-> [Yiming Wang*](https://19reborn.github.io/), Qin Han*, [Marc Habermann](https://people.mpi-inf.mpg.de/~mhaberma/), [Kostas Daniilidis](https://www.cis.upenn.edu/~kostas/), [Christian Theobalt](http://people.mpi-inf.mpg.de/~theobalt/), [Lingjie Liu](https://lingjie0206.github.io/)
+[Baptiste Brument*](https://bbrument.github.io/),
+[Robin Bruneau*](https://robinbruneau.github.io/),
+[Yvain Quéau](https://sites.google.com/view/yvainqueau),
+[Jean Mélou](https://www.irit.fr/~Jean.Melou/),
+[François Lauze](https://loutchoa.github.io/),
+[Jean-Denis Durou](https://www.irit.fr/~Jean-Denis.Durou/),
+[Lilian Calvet](https://scholar.google.com/citations?user=6JewdrMAAAAJ&hl=en)
 
+### [Project page](https://robinbruneau.github.io/publications/rnb_neus.html) | [Paper](https://arxiv.org/abs/2312.01215)
 
-
-This project is an extension of [Instant-NGP](https://github.com/NVlabs/instant-ngp) enabling it to model neural surface representation and dynmaic scenes. We extended:
-- dependencies/[neus2_TCNN](https://github.com/19reborn/NeuS2_TCNN.git)
-  - add second-order derivative backpropagation computation for MLP;
-  - add progressive training for Grid Encoding.
-- neural-graphics-primitives
-  - extend NeRF mode for **NeuS**;
-  - add support for dynamic scenes.
-
+<img src="assets/pipeline.png">
 
 ## Table Of Contents
 
@@ -28,100 +26,106 @@ This project is an extension of [Instant-NGP](https://github.com/NVlabs/instant-
 
 ## Installation
 
-**Please first see [Instant-NGP](https://github.com/NVlabs/instant-ngp#building-instant-ngp-windows--linux) for original requirements and compilation instructions. NeuS2 follows the installing steps of Instant-NGP.**
+**Please first see [Instant-NGP](https://github.com/NVlabs/instant-ngp#building-instant-ngp-windows--linux) for original requirements and compilation instructions. [NeuS2](https://github.com/19reborn/NeuS2) follows the installing steps of Instant-NGP.**
 
 Clone this repository and all its submodules using the following command:
 ```
-git clone --recursive https://github.com/19reborn/NeuS2
-cd NeuS2
+git clone https://github.com/RobinBruneau/RNb_NeuS2/
+cd RNb_NeuS2
 ```
 
-Then use CMake to build the project:
+Then use CMake to build the preprocess (OpenCV and Eigen required) : 
+
+```
+cd preprocess
+cmake .
+make
+cd ..
+```
+
+And use CMake to build the project (follow NeuS2 requirements) : 
 
 ```
 cmake . -B build
 cmake --build build --config RelWithDebInfo -j 
 ```
 
-For python useage, first install dependencies with conda and pip:
+You will also need Python with the following libraries : 
 ```
-conda create -n neus2 python=3.9
-conda activate neus2
-pip install -r requirements.txt
+- Numpy
+- Scipy
+- Argparse
+- Json
+- Cv2
+- Glob
+- Shutil
 ```
-
-Then install [pytorch](https://pytorch.org/) and [pytorch3d](https://github.com/facebookresearch/pytorch3d).
-
-If you meet problems of compiling, you may find solutions [here](https://github.com/NVlabs/instant-ngp#troubleshooting-compile-errors).
 
 ## Training
 
-### Static Scene
-
-You can specify a static scene by setting `--scene` to a `.json` file containing data descriptions.
-
-The [DTU](https://roboimagedata.compute.dtu.dk/?page_id=36) Scan24 scene can be downloaded from [Google Drive](https://drive.google.com/file/d/1KkNkljeYNwg5dH_y080AlzslVl1RTnKy/view?usp=sharing):
-
-```sh
-./build/testbed --scene ${data_path}/transform.json
 ```
-Or, you can run the experiment in an automated fashion through python bindings:
-
-```sh
-python scripts/run.py --scene ${data_path}/transform.json --name ${your_experiment_name} --network ${config_name} --n_steps ${training_steps}
+python ./preprocess/preprocess.py --folder ./data/FOLDER/
+./run_3steps ./data/FOLDER/
 ```
-
-For training on DTU dataset, `config_name` can be `dtu.json` and `training_steps` can be `15000`.
-
-Also, you can use `scripts/run_dynamic.py` as:
-```sh
-python scripts/run_dynamic.py --scene ${data_path}/transform.json --name ${your_experiment_name} --network ${config_name}
+For _l60 folder : 
 ```
-, where the number of training iterations is specified in the config.
-
-The outputs and logs of the experiment can be found at `output/${your_experiment_name}/`.
-
-### Dynamic Scene
-
-To specify a dynamic scene, you should set `--scene` to a directory containing `.json` files that describe training frames.
-
-```sh
-./build/testbed --scene ${data_dirname}
+python ./preprocess/preprocess.py --folder ./data/FOLDER/
+./build/testbed --mode nerf --scene .data/FOLDER/NeuS2/NeuS2_l60/ --maxiter 15000 --save-mesh--mask-weight 0.3
+```
+For _lopti folder : 
+```
+python ./preprocess/preprocess.py --folder ./data/FOLDER/
+./build/testbed --mode nerf --scene .data/FOLDER/NeuS2/NeuS2_l60/ ----opti-lights --maxiter 15000 --save-mesh--mask-weight 0.3
 ```
 
-Or, run `scripts/run_dynamic.py` using python:
-
-```sh
-python scripts/run_dynamic.py --scene ${data_dirname} --name ${your_experiment_name} --network ${config_name}
+You can use the following options :
 ```
+--mode [nerf] --> Remove it because it's always nerf
+--scene FOLDER (path to your data)
+--maxiter INT (the number of iterations to compute)
+--mask-weight FLOAT (the weight of the mask loss)
+--save-mesh (extract the mesh add the end)
+--save-snapshot (save the neural weights)
+--no-gui (run the optimization without GUI)
 
-There are some hyperparameters of the network configuration, such as `configs/nerf/base.json`, to control the dynamic training process:
-- `first_frame_max_training_step`: determine the number of training iterations for the first frame, default `2000`.
-- `next_frame_max_training_step`: determine the number of training iterations for subsequent frames, default `1300`, including global transformation prediction.
-- `predict_global_movement`: set `true` if use global transformation prediction.
-- `predict_global_movement_training_step`: determine the number of training iterations for global transformation prediction, default `300`. Only valid when `predict_global_movement` is `true`.
-
-Also, we provide scripts to reconstruct dynamic scenes by reconstructing static scene frame by frame.
-
-```sh
-python scripts/run_per_frame.py --base_dir ${data_dirname} --output_dir ${output_path} --config ${config_name}
 ```
-
-Dynamic scene examples can be downloaded from [Google Drive](https://drive.google.com/file/d/1hvqaupbufxuadVMP_2reTAqnaEZ4xvhj/view?usp=sharing).
-
 ## Data
 
-- Static scene example, [link](https://drive.google.com/file/d/1KkNkljeYNwg5dH_y080AlzslVl1RTnKy/view?usp=sharing).
-- Dynamic scene example, [link](https://drive.google.com/file/d/1hvqaupbufxuadVMP_2reTAqnaEZ4xvhj/view?usp=sharing).
-- Pretrained model and configuration files for DTU, [link](https://drive.google.com/file/d/1DKXLkOHml6s5IB5yzn_HdYNv-ykGUJxr/view?usp=drive_link).
+You can download here data from DiLiGenT-MV in the expected convention after some Albedo/Normal generation with SDM-UniPS / Uni-MS-PS
 
 ## Data Convention
 
-**NeuS2 supports the data format provided by [Instant-NGP](https://github.com/NVlabs/instant-ngp).** Also, you can use NeuS2's data format (with `from_na=true`), see [data convention](https://github.com/19reborn/NeuS2/blob/main/DATA_CONVENTION.md).
-
-We also provide a data conversion from [NeuS](https://lingjie0206.github.io/papers/NeuS/) to our data convention, which can be found in `tools/data_format_from_neus.py`.
-
+- You can place in the folder ./data/ your own experiments
+- We expect the following convention : 
+```
+./data/FOLDER/
+    Albedo/
+        000.png
+        001.png
+        ...
+    Normal/
+        000.png
+        001.png
+        002.png
+    Mask/
+        000.png
+        001.png
+        002.png
+    cameras.npz
+```
 ## Acknowledgements & Citation
+
+- [RNb-NeuS](https://robinbruneau.github.io/publications/rnb_neus.html)
+
+```bibtex
+@inproceedings{Brument23,
+    title={RNb-Neus: Reflectance and normal Based reconstruction with NeuS},
+    author={Baptiste Brument and Robin Bruneau and Yvain Quéau and Jean Mélou and François Lauze and Jean-Denis Durou and Lilian Calvet},
+    eprint={2312.01215},
+    archivePrefix={arXiv},
+    year={2023}
+}
+```
 
 - [NeuS2](https://vcai.mpi-inf.mpg.de/projects/NeuS2/)
 
