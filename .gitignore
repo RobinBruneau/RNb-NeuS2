@@ -8,3 +8,8 @@ data/
 .idea/
 
 cmake-build-debug/
+
+preprocess/
+!preprocess/nlohmann/json.hpp
+!preprocess/CMakeLists.txt
+!preprocess/gen_images_light_60_opti.cpp
