@@ -1,2 +1,0 @@
-# Hashes of file build rules.
-4c2af182b71f071f08bc70bed8e104f4 optix_ptx.h

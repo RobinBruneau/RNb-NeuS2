@@ -6,3 +6,5 @@ data/
 
 # Ignore .idea directory
 .idea/
+
+cmake-build-debug/
