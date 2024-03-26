@@ -40,14 +40,6 @@ int main(int argc, char** argv) {
             {'h', "help"},
     };
 
-    ValueFlag<string> mode_flag{
-            parser,
-            "MODE",
-            "Mode can be 'nerf', 'sdf', 'image', or 'volume' or 'normal",
-            {'m', "mode"},
-    };
-
-
 	Flag lone_flag{
             parser,
             "LONE",
@@ -146,7 +138,6 @@ int main(int argc, char** argv) {
             {"mask-weight"},
     };
 
-	
 
 	// Parse command line arguments and react to parsing
 	// errors using exceptions.
@@ -170,142 +161,112 @@ int main(int argc, char** argv) {
 		return 0;
 	}
 
-	try {
-		ETestbedMode mode;
-		if (!mode_flag) {
-            tlog::error() << "You need to specify --mode {sdf,nerf,image,volume}";
+	ETestbedMode mode = ETestbedMode::Nerf;
+
+    Testbed testbed{mode};
+    if (max_iter_flag){
+        testbed.set_max_iter(get(max_iter_flag));
+    }
+
+    if (lone_flag){
+        testbed.apply_L1();
+    }
+
+    if (opti_lights_flag){
+        testbed.apply_light_opti();
+    }
+
+    tlog::info() << "Number of iterations : " << testbed.get_max_iter();
+
+    if (scene_flag) {
+        fs::path scene_path = get(scene_flag);
+        if (!scene_path.exists()) {
+            tlog::error() << "Scene path " << scene_path << " does not exist.";
             return 1;
-		} else {
-			auto mode_str = get(mode_flag);
-			if (equals_case_insensitive(mode_str, "nerf")) {
-				mode = ETestbedMode::Nerf;
-			} else if (equals_case_insensitive(mode_str, "sdf")) {
-				mode = ETestbedMode::Sdf;
-			} else if (equals_case_insensitive(mode_str, "image")) {
-				mode = ETestbedMode::Image;
-			} else if (equals_case_insensitive(mode_str, "volume")) {
-				mode = ETestbedMode::Volume;
-			} else {
-				tlog::error() << "Mode must be 'nerf'";
-				return 1;
-			}
-		}
+        }
+        testbed.load_training_data(scene_path.str());
+    }
 
-		Testbed testbed{mode};
-        if (max_iter_flag){
-            testbed.set_max_iter(get(max_iter_flag));
+    std::string mode_str = "nerf";
+
+    if (snapshot_flag) {
+        // Load network from a snapshot if one is provided
+        fs::path snapshot_path = get(snapshot_flag);
+        if (!snapshot_path.exists()) {
+            tlog::error() << "Snapshot path " << snapshot_path << " does not exist.";
+            return 1;
         }
 
-		if (lone_flag){
-            testbed.apply_L1();
+        testbed.load_snapshot(snapshot_path.str());
+        testbed.m_train = true;
+        printf("*******Loaded snapshot succeed!\n");
+    } else {
+        // Otherwise, load the network config and prepare for training
+        fs::path network_config_path = fs::path{"configs"}/mode_str;
+        if (network_config_flag) {
+            auto network_config_str = get(network_config_flag);
+            if ((network_config_path/network_config_str).exists()) {
+                network_config_path = network_config_path/network_config_str;
+            } else {
+                network_config_path = network_config_str;
+            }
+        } else {
+            network_config_path = network_config_path/"base.json";
         }
 
-		if (opti_lights_flag){
-			testbed.apply_light_opti();
-		}
+        if (!network_config_path.exists()) {
+            tlog::error() << "Network config path " << network_config_path << " does not exist.";
+            return 1;
+        }
+        testbed.reload_network_from_file(network_config_path.str());
+        testbed.m_train = !no_train_flag;
+    }
 
-        tlog::info() << "Number of iterations : " << testbed.get_max_iter();
-
-		if (scene_flag) {
-			fs::path scene_path = get(scene_flag);
-			if (!scene_path.exists()) {
-				tlog::error() << "Scene path " << scene_path << " does not exist.";
-				return 1;
-			}
-			testbed.load_training_data(scene_path.str());
-		}
-
-		std::string mode_str;
-		switch (mode) {
-			case ETestbedMode::Nerf:   mode_str = "nerf";   break;
-			case ETestbedMode::Sdf:    mode_str = "sdf";    break;
-			case ETestbedMode::Image:  mode_str = "image";  break;
-			case ETestbedMode::Volume: mode_str = "volume"; break;
-		}
-
-		if (snapshot_flag) {
-			// Load network from a snapshot if one is provided
-			fs::path snapshot_path = get(snapshot_flag);
-			if (!snapshot_path.exists()) {
-				tlog::error() << "Snapshot path " << snapshot_path << " does not exist.";
-				return 1;
-			}
-
-			testbed.load_snapshot(snapshot_path.str());
-			testbed.m_train = true;
-			printf("*******Loaded snapshot succeed!\n");
-		} else {
-			// Otherwise, load the network config and prepare for training
-			fs::path network_config_path = fs::path{"configs"}/mode_str;
-			if (network_config_flag) {
-				auto network_config_str = get(network_config_flag);
-				if ((network_config_path/network_config_str).exists()) {
-					network_config_path = network_config_path/network_config_str;
-				} else {
-					network_config_path = network_config_str;
-				}
-			} else {
-				network_config_path = network_config_path/"base.json";
-			}
-
-			if (!network_config_path.exists()) {
-				tlog::error() << "Network config path " << network_config_path << " does not exist.";
-				return 1;
-			}
-			tlog::info() << "ICI1";
-			testbed.reload_network_from_file(network_config_path.str());
-			tlog::info() << "ICI2";
-			testbed.m_train = !no_train_flag;
-			tlog::info() << "ICI3";
-		}
-
-		bool gui = !no_gui_flag;
+    bool gui = !no_gui_flag;
 #ifndef NGP_GUI
-		gui = false;
+    gui = false;
 #endif
 
-		if (gui) {
-			testbed.init_window(width_flag ? get(width_flag) : 1920, height_flag ? get(height_flag) : 1080);
-		}
+    if (gui) {
+        testbed.init_window(width_flag ? get(width_flag) : 1920, height_flag ? get(height_flag) : 1080);
+    }
 
-		if (mask_weight_flag){
-            testbed.set_mask_weight(get(mask_weight_flag));
+    if (mask_weight_flag){
+        testbed.set_mask_weight(get(mask_weight_flag));
+    }
+
+    // Render/training loop
+    while (testbed.frame()) {
+        if (!gui) {
+            if (testbed.m_training_step % 100 == 0){
+                tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
+            // tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val() << " lr=" << testbed.m_optimizer.learning_rate();
+            }
         }
+    }
 
-		// Render/training loop
-		while (testbed.frame()) {
-			if (!gui) {
-				tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
-				// tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val() << " lr=" << testbed.m_optimizer.learning_rate();
-			}
-		}
+    std::string path = get(scene_flag);
+    size_t found = path.find_last_of("/\\");
+    std::string folder_name = path.substr(0,found);
 
-        std::string path = get(scene_flag);
-        size_t found = path.find_last_of("/\\");
-        std::string folder_name = path.substr(0,found);
+    static char obj_filename_buf[128] = "";
+    if (obj_filename_buf[0] == '\0') {
+        snprintf(obj_filename_buf, sizeof(obj_filename_buf), "%s", (folder_name+"/mesh_"+to_string(testbed.get_max_iter())+"_.obj").c_str());
+    }
 
-        static char obj_filename_buf[128] = "";
-        if (obj_filename_buf[0] == '\0') {
-            snprintf(obj_filename_buf, sizeof(obj_filename_buf), "%s", (folder_name+"/mesh_"+to_string(testbed.get_max_iter())+"_.obj").c_str());
-        }
+    if (save_mesh_flag){
+        tlog::info() << "SAVING";
+        testbed.compute_and_save_marching_cubes_mesh(obj_filename_buf,Eigen::DenseBase<Eigen::Vector3i>::Constant(1024),{},0.0f,false);
+    }
 
-        if (save_mesh_flag){
-			tlog::info() << "SAVING";
-            testbed.compute_and_save_marching_cubes_mesh(obj_filename_buf,Eigen::DenseBase<Eigen::Vector3i>::Constant(1024),{},0.0f,false);
-        }
-
-		std::string  snpashot_filename = folder_name +"/snapshot_"+to_string(testbed.get_max_iter())+".msgpack";
-        
-
-		if(save_snapshot_flag){
-			tlog::info() << "Saving Snapshot !";
-			tlog::info() << snpashot_filename;
-			testbed.save_snapshot(snpashot_filename,false);
-		}
+    std::string  snpashot_filename = folder_name +"/snapshot_"+to_string(testbed.get_max_iter())+".msgpack";
 
 
-	} catch (const exception& e) {
-		tlog::error() << "Uncaught exception: " << e.what();
-		return 1;
-	}
+    if(save_snapshot_flag){
+        tlog::info() << "Saving Snapshot !";
+        tlog::info() << snpashot_filename;
+        testbed.save_snapshot(snpashot_filename,false);
+    }
+
+
 }

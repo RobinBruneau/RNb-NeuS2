@@ -70,17 +70,16 @@ python ./preprocess/preprocess.py --folder ./data/FOLDER/
 For _l60 folder : 
 ```
 python ./preprocess/preprocess.py --folder ./data/FOLDER/
-./build/testbed --mode nerf --scene .data/FOLDER/NeuS2/NeuS2_l60/ --maxiter 15000 --save-mesh--mask-weight 0.3
+./build/testbed --scene .data/FOLDER/NeuS2/NeuS2_l60/ --maxiter 15000 --save-mesh --mask-weight 0.3
 ```
 For _lopti folder : 
 ```
 python ./preprocess/preprocess.py --folder ./data/FOLDER/
-./build/testbed --mode nerf --scene .data/FOLDER/NeuS2/NeuS2_l60/ ----opti-lights --maxiter 15000 --save-mesh--mask-weight 0.3
+./build/testbed --scene .data/FOLDER/NeuS2/NeuS2_lopti/ ----opti-lights --maxiter 15000 --save-mesh --mask-weight 0.3
 ```
 
 You can use the following options :
 ```
---mode [nerf] --> Remove it because it's always nerf
 --scene FOLDER (path to your data)
 --maxiter INT (the number of iterations to compute)
 --mask-weight FLOAT (the weight of the mask loss)

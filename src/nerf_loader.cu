@@ -330,7 +330,6 @@ NerfDataset load_nerf(const std::vector<filesystem::path>& jsonpaths, float shar
 	}
 
 	try{
-		tlog::info() << "Avant lecture jsonLights";
 		int n_images_distinct = result.n_images / 3;
 		result.lights_opti = new Eigen::Vector3f[n_images_distinct * result.width * result.height * 3];
 		fs::path jsonLightPath = basepath / "lights.json";
@@ -348,10 +347,6 @@ NerfDataset load_nerf(const std::vector<filesystem::path>& jsonpaths, float shar
 				}
 			}
 		}
-		tlog::info() << " image 0, pixel 256-300, light 1 : " << result.lights_opti[result.height*result.width*3*0+3*(256*result.width+300)+1];
-		tlog::info() << " image 10, pixel 300-256, light 2 : " << result.lights_opti[result.height*result.width*3*10+3*(300*result.width+256)+2];
-		tlog::info() << " image 15, pixel 350-350, light 0 : " << result.lights_opti[result.height*result.width*3*15+3*(350*result.width+350)+0];
-		tlog::success() << "Apres lecture jsonLights";
 	} catch (...) {
 		int c = 0;
 	}
@@ -569,7 +564,6 @@ NerfDataset load_nerf(const std::vector<filesystem::path>& jsonpaths, float shar
 			}
 		}
 
-		tlog::info() << result.n_images << " " << result.n_lights << " " << result.n_views ;
 		tlog::success() << "Images from MAIN to be loaded !";
 		// if (json.contains("frames") && json["frames"].is_array()) pool.parallelForAsync<size_t>(0, json["frames"].size(), [&, basepath, image_idx, info](size_t i) {
 		if (json.contains("frames") && json["frames"].is_array()) pool.parallelForAsync<size_t>(0, json["frames"].size(), [&progress, &n_loaded, &result, &images, &json, basepath, image_idx, info, rolling_shutter, principal_point, camera_distortion, part_after_underscore, fix_premult, enable_depth_loading, enable_ray_loading](size_t i) {
