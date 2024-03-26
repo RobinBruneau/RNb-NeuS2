@@ -1,0 +1,2 @@
+/usr/bin/ar qc libtiny-cuda-nn.a CMakeFiles/tiny-cuda-nn.dir/common.cu.o CMakeFiles/tiny-cuda-nn.dir/common_device.cu.o CMakeFiles/tiny-cuda-nn.dir/cpp_api.cu.o CMakeFiles/tiny-cuda-nn.dir/cutlass_mlp.cu.o CMakeFiles/tiny-cuda-nn.dir/encoding.cu.o CMakeFiles/tiny-cuda-nn.dir/loss.cu.o CMakeFiles/tiny-cuda-nn.dir/network.cu.o CMakeFiles/tiny-cuda-nn.dir/object.cu.o CMakeFiles/tiny-cuda-nn.dir/optimizer.cu.o CMakeFiles/tiny-cuda-nn.dir/reduce_sum.cu.o CMakeFiles/tiny-cuda-nn.dir/fully_fused_mlp.cu.o
+/usr/bin/ranlib libtiny-cuda-nn.a
