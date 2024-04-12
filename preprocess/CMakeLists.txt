@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 set(CMAKE_CXX_STANDARD 17)
-project(my_cpp_project)
+project(preprocess)
 SET( CMAKE_CXX_FLAGS_RELEASE  "")
 SET( CMAKE_CXX_FLAGS  "-O3 -DNDEBUG -std=c++20 -march=native -fpic -ftree-vectorize")
 

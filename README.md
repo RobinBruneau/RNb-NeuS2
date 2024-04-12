@@ -34,9 +34,10 @@ git clone https://github.com/RobinBruneau/RNb_NeuS2/
 cd RNb_NeuS2
 ```
 
-Then use CMake to build the preprocess (OpenCV and Eigen required) : 
+Then use CMake to build the preprocess (OpenCV, Eigen and  nlohmann-json required) : 
 
 ```
+(sudo apt-get install nlohmann-json3-dev)
 cd preprocess
 cmake .
 make
