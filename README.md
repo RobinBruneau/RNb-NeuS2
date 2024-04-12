@@ -84,7 +84,7 @@ You can use the following options :
 --scene FOLDER (path to your data)
 --maxiter INT (the number of iterations to compute)
 --mask-weight FLOAT (the weight of the mask loss)
---save-mesh (extract the mesh add the end)
+--save-mesh (extract the mesh at the end)
 --save-snapshot (save the neural weights)
 --no-gui (run the optimization without GUI)
 
