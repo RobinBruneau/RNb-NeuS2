@@ -99,15 +99,15 @@ You can download here data from DiLiGenT-MV in the expected convention after som
 - We expect the following convention : 
 ```
 ./data/FOLDER/
-    Albedo/
+    albedo/
         000.png
         001.png
         ...
-    Normal/
+    normal/
         000.png
         001.png
         002.png
-    Mask/
+    mask/
         000.png
         001.png
         002.png
