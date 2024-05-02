@@ -374,5 +374,7 @@ int main(int argc, char* argv[]) {
         std::cerr << "Error: Unable to open file for writing." << std::endl;
     }
 
+    std::cout << "Done ! " << std::endl;
+
     return 0;
 }

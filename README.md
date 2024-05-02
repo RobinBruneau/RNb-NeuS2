@@ -34,9 +34,10 @@ git clone https://github.com/RobinBruneau/RNb_NeuS2/
 cd RNb_NeuS2
 ```
 
-Then use CMake to build the preprocess (OpenCV and Eigen required) : 
+Then use CMake to build the preprocess (OpenCV, Eigen and  nlohmann-json required) : 
 
 ```
+(sudo apt-get install nlohmann-json3-dev)
 cd preprocess
 cmake .
 make
@@ -83,7 +84,7 @@ You can use the following options :
 --scene FOLDER (path to your data)
 --maxiter INT (the number of iterations to compute)
 --mask-weight FLOAT (the weight of the mask loss)
---save-mesh (extract the mesh add the end)
+--save-mesh (extract the mesh at the end)
 --save-snapshot (save the neural weights)
 --no-gui (run the optimization without GUI)
 
@@ -98,15 +99,15 @@ You can download here data from DiLiGenT-MV in the expected convention after som
 - We expect the following convention : 
 ```
 ./data/FOLDER/
-    Albedo/
+    albedo/
         000.png
         001.png
         ...
-    Normal/
+    normal/
         000.png
         001.png
         002.png
-    Mask/
+    mask/
         000.png
         001.png
         002.png
