@@ -114,7 +114,11 @@ def NeuS_to_NeuS2(inputFolder,outputFolder):
             msk_path = join(base_msk_dir, msk_name)
 
             img = cv2.imread(img_path,-1)
-            msk = ((cv2.imread(msk_path, -1).astype(np.uint8)/255)*(2**16 -1)).astype(np.uint16)[:,:,0]
+          
+            msk = ((cv2.imread(msk_path, -1).astype(np.uint8)/255)*(2**16 -1)).astype(np.uint16)
+            if len(msk.shape)> 2 : 
+            	msk = msk[:,:,0]
+            
             image = np.concatenate([img, msk[:, :, np.newaxis]], axis=-1)
             H, W = image.shape[0], image.shape[1]
             cv2.imwrite(join(new_image_dir, img_name), image)
