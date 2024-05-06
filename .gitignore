@@ -1,4 +1,7 @@
 # Ignore build directory
+.vscode/
+
+# Ignore build directory
 build/
 
 # Ignore data directory
