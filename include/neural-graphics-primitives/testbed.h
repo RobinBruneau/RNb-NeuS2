@@ -317,6 +317,7 @@ public:
 	void set_max_iter(uint32_t max_it);
 	void set_mask_weight(float weight);
 	void apply_light_opti();
+	void apply_no_albedo();
 	void apply_normalization();
 	void apply_L1();
     uint32_t get_max_iter();
@@ -494,6 +495,7 @@ public:
 	uint32_t m_IoR = 1.0;
 	bool m_apply_normalization = false;
 	bool m_light_opti = false;
+	bool m_no_albedo = false;
 	bool m_apply_L1 = false;
 	float m_prev_scale = 1.0;
 	float m_dof = 0.0f;
