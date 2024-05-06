@@ -334,13 +334,14 @@ NerfDataset load_nerf(const std::vector<filesystem::path>& jsonpaths, float shar
 		result.lights_opti = new Eigen::Vector3f[n_images_distinct * result.width * result.height * 3];
 		fs::path jsonLightPath = basepath / "lights.json";
 		auto jsonLights  = nlohmann::json::parse(std::ifstream{jsonLightPath.str()}, nullptr, true, true);
+		auto lights_opti = jsonLights["lights"];
 		for (int image_id=0;image_id<n_images_distinct;image_id++){
 			for (int row=0;row<result.height;row++){
 				for (int col=0;col<result.width;col++){
 					for (int light_id=0 ; light_id<3 ; light_id++){
-						float vx = jsonLights[result.height*result.width*9*image_id+9*(row*result.width+col)+3*light_id];
-						float vy = jsonLights[result.height*result.width*9*image_id+9*(row*result.width+col)+3*light_id+1];
-						float vz = jsonLights[result.height*result.width*9*image_id+9*(row*result.width+col)+3*light_id+2];
+						float vx = lights_opti[result.height*result.width*9*image_id+9*(row*result.width+col)+3*light_id];
+						float vy = lights_opti[result.height*result.width*9*image_id+9*(row*result.width+col)+3*light_id+1];
+						float vz = lights_opti[result.height*result.width*9*image_id+9*(row*result.width+col)+3*light_id+2];
 						Eigen::Vector3f light = Eigen::Vector3f(vx,vy,vz);
 						result.lights_opti[result.height*result.width*3*image_id+3*(row*result.width+col)+light_id] = light;
 					}
