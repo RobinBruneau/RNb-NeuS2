@@ -1731,15 +1731,18 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 
 	
-	
+	float mask_certainty = (float) (texsamp_albedo.w() > 0.99); // 1 should be with color
 	//loss_type = ELossType::L1 ;
 	LossAndGradient lg = loss_and_gradient(rgbtarget, rgb_ray, loss_type); // modification
+	lg.loss *= mask_certainty;
+	lg.gradient *= mask_certainty;
 
 	lg.loss /= img_pdf * xy_pdf;
 
 
 
 	float mask_gt =(float) (texsamp_normal.w() > 0.99); // 1 should be with color
+	
 	float gradient_weight_sum;
 
 	// with softmax?
@@ -1890,15 +1893,17 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 		tcnn::vector_t<tcnn::network_precision_t, 16> local_dL_doutput;
 
+		//loss_scale *= mask_certainty;
+
 		float opti_rgb = 1.0;
 		if (apply_no_albedo){
 			opti_rgb = 0.0f;
 		}
 
 		// chain rule to go from dloss/drgb to dloss/dmlp_output
-		local_dL_doutput[0] = opti_rgb * loss_scale * (dloss_by_drgb.x() * network_to_rgb_derivative(local_network_output[0], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[0])); // Penalize way too large color values
-		local_dL_doutput[1] = opti_rgb * loss_scale * (dloss_by_drgb.y() * network_to_rgb_derivative(local_network_output[1], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[1]));
-		local_dL_doutput[2] = opti_rgb * loss_scale * (dloss_by_drgb.z() * network_to_rgb_derivative(local_network_output[2], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[2]));
+		local_dL_doutput[0] = opti_rgb  * loss_scale * (dloss_by_drgb.x() * network_to_rgb_derivative(local_network_output[0], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[0])); // Penalize way too large color values
+		local_dL_doutput[1] = opti_rgb  * loss_scale * (dloss_by_drgb.y() * network_to_rgb_derivative(local_network_output[1], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[1]));
+		local_dL_doutput[2] = opti_rgb  * loss_scale * (dloss_by_drgb.z() * network_to_rgb_derivative(local_network_output[2], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[2]));
 
 		const float sum_weight_suffix = weight_sum - weight_sum2;
 
@@ -1983,11 +1988,12 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		bool inside_ek_aabb = ek_aabb.contains(pos);
 	
 		// ek_loss
+
 		local_dL_doutput[4] = (tcnn::network_precision_t)(ek_loss_weight * 2 * original_loss_scale * pos_gradient_norm_inv * pos_gradient[0]);
 		local_dL_doutput[5] = (tcnn::network_precision_t)(ek_loss_weight * 2 * original_loss_scale * pos_gradient_norm_inv * pos_gradient[1]);
 		local_dL_doutput[6] = (tcnn::network_precision_t)(ek_loss_weight * 2 * original_loss_scale * pos_gradient_norm_inv * pos_gradient[2]);
 		
-		local_dL_doutput[7] = (tcnn::network_precision_t)(loss_scale * dloss_dvariance );
+		local_dL_doutput[7] = (tcnn::network_precision_t)(loss_scale*dloss_dvariance);
 
 		#if NORMAL_VECTORS_NORMALIZED
 			float gradient_norm_3 = gradient_norm * gradient_norm * gradient_norm;
@@ -2019,6 +2025,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 			local_dL_doutput[8] = (tcnn::network_precision_t)(loss_scale * (dloss_dn.x() + dloss_dnormal_norm * dir[0]));
 			local_dL_doutput[9] = (tcnn::network_precision_t)(loss_scale * (dloss_dn.y() + dloss_dnormal_norm * dir[1]));
 			local_dL_doutput[10] = (tcnn::network_precision_t)(loss_scale * (dloss_dn.z() + dloss_dnormal_norm * dir[2]));
+
 		#endif
 
 		*(tcnn::vector_t<tcnn::network_precision_t, 16>*)dloss_doutput = local_dL_doutput;

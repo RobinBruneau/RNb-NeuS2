@@ -78,12 +78,19 @@ def NeuS_to_NeuS2(inputFolder,outputFolder):
     albedo_folder_exist = os.path.exists(base_albedo_dir)
     base_normal_dir = join(inputFolder, "normal")
     base_msk_dir = join(inputFolder, "mask")
+    base_msk_certainty_dir = join(inputFolder, "mask_certainty")
+    msk_certainty_folder_exist = os.path.exists(base_msk_certainty_dir)
     if albedo_folder_exist :
         all_images_albedo = sorted(os.listdir(base_albedo_dir))
     else :
         all_images_albedo = sorted(os.listdir(base_normal_dir))
     all_images_normal = sorted(os.listdir(base_normal_dir))
     all_masks = sorted(os.listdir(base_msk_dir))
+
+    if msk_certainty_folder_exist :
+        all_masks_certainty = sorted(os.listdir(base_msk_certainty_dir))
+    else :
+        all_masks_certainty = sorted(os.listdir(base_normal_dir))
 
     def copy_directories(root_src_dir, root_dst_dir):
         for src_dir, dirs, files in os.walk(root_src_dir):
@@ -105,9 +112,11 @@ def NeuS_to_NeuS2(inputFolder,outputFolder):
         img_albedo_name = all_images_albedo[i]
         img_normal_name = all_images_normal[i]
         msk_name = all_masks[i]
+        msk_certainty_name = all_masks_certainty[i]
         img_albedo_path = join(base_albedo_dir, img_albedo_name)
         img_normal_path = join(base_normal_dir, img_normal_name)
         msk_path = join(base_msk_dir, msk_name)
+        msk_certainty_path = join(base_msk_certainty_dir, msk_certainty_name)
 
         img_normal = cv2.imread(img_normal_path, -1)[:, :, :3]
         if albedo_folder_exist :
@@ -116,11 +125,16 @@ def NeuS_to_NeuS2(inputFolder,outputFolder):
             img_albedo = (np.ones_like(img_normal)*(2**16-1)).astype(np.uint16)
 
         msk = cv2.imread(msk_path, -1)
-
         if len(msk.shape) > 2 :
             msk = msk[:,:,0]
         if msk.dtype == np.uint8 :
             msk = (msk/255*(2**16-1)).astype(np.uint16)
+
+        msk_certainty = cv2.imread(msk_certainty_path, -1)
+        if len(msk_certainty.shape) > 2:
+            msk_certainty = msk_certainty[:, :, 0]
+        if msk_certainty.dtype == np.uint8:
+            msk_certainty = (msk_certainty / 255 * (2 ** 16 - 1)).astype(np.uint16)
 
 
         if img_albedo.dtype == np.uint8 :
@@ -128,7 +142,7 @@ def NeuS_to_NeuS2(inputFolder,outputFolder):
         if img_normal.dtype == np.uint8 :
             img_normal = (img_normal/255*(2**16-1)).astype(np.uint16)
 
-        image_albedo = np.concatenate([img_albedo, msk[:, :, np.newaxis]], axis=-1)
+        image_albedo = np.concatenate([img_albedo, msk_certainty[:, :, np.newaxis]], axis=-1)
         H, W = image_albedo.shape[0], image_albedo.shape[1]
         cv2.imwrite(join(new_albedo_dir, img_albedo_name), image_albedo)
 
