@@ -76,13 +76,17 @@ inline size_t depth_type_size(EDepthDataType type) {
 }
 
 struct NerfDataset {
-	std::vector<tcnn::GPUMemory<Ray>> raymemory;
-	std::vector<tcnn::GPUMemory<uint16_t>> pixelmemory;
-	std::vector<tcnn::GPUMemory<float>> depthmemory;
+	std::vector<tcnn::GPUMemory<Ray>> raymemory_normal;
+	std::vector<tcnn::GPUMemory<uint16_t>> pixelmemory_normal;
+	std::vector<tcnn::GPUMemory<float>> depthmemory_normal;
 
-	std::vector<TrainingImageMetadata> metadata;
-	Eigen::Vector3f* lights  = nullptr;
-	Eigen::Vector3f* lights_opti  = nullptr;
+	std::vector<tcnn::GPUMemory<Ray>> raymemory_albedo;
+	std::vector<tcnn::GPUMemory<uint16_t>> pixelmemory_albedo;
+	std::vector<tcnn::GPUMemory<float>> depthmemory_albedo;
+
+	std::vector<TrainingImageMetadata> metadata_normal;
+	std::vector<TrainingImageMetadata> metadata_albedo;
+
 	std::vector<TrainingXForm> xforms;
 	tcnn::GPUMemory<float> sharpness_data;
 	Eigen::Vector2i sharpness_resolution = {0, 0};
@@ -117,8 +121,10 @@ struct NerfDataset {
 		return (has_light_dirs ? 3u : 0u) + n_extra_learnable_dims;
 	}
 
-	void set_training_image(int frame_idx, const Eigen::Vector2i& image_resolution, const void* pixels, const void* depth_pixels, float depth_scale, bool image_data_on_gpu, EImageDataType image_type, EDepthDataType depth_type, float sharpen_amount = 0.f, bool white_transparent = false, bool black_transparent = false, uint32_t mask_color = 0, const Ray *rays = nullptr);
-	void set_training_normal(int frame_idx, const Eigen::Vector2i& image_resolution, const void* pixels, const void* depth_pixels, float depth_scale, bool image_data_on_gpu, EImageDataType image_type, EDepthDataType depth_type, float sharpen_amount = 0.f, bool white_transparent = false, bool black_transparent = false, uint32_t mask_color = 0, const Ray *rays = nullptr);
+	void set_training_image_normal(int frame_idx, const Eigen::Vector2i& image_resolution, const void* pixels, const void* depth_pixels, float depth_scale, bool image_data_on_gpu, EImageDataType image_type, EDepthDataType depth_type, float sharpen_amount = 0.f, bool white_transparent = false, bool black_transparent = false, uint32_t mask_color = 0, const Ray *rays = nullptr);
+
+	void set_training_image_albedo(int frame_idx, const Eigen::Vector2i& image_resolution, const void* pixels, const void* depth_pixels, float depth_scale, bool image_data_on_gpu, EImageDataType image_type, EDepthDataType depth_type, float sharpen_amount = 0.f, bool white_transparent = false, bool black_transparent = false, uint32_t mask_color = 0, const Ray *rays = nullptr);
+
 
 	Eigen::Vector3f nerf_direction_to_ngp(const Eigen::Vector3f& nerf_dir) {
 		Eigen::Vector3f result = nerf_dir;

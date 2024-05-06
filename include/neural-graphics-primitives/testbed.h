@@ -564,9 +564,8 @@ public:
 				bool is_cdf_valid = false;
 			} error_map;
 
-			tcnn::GPUMemory<TrainingImageMetadata> metadata_gpu;
-			Eigen::Vector3f* lights_gpu;
-			Eigen::Vector3f* lights_opti_gpu;
+			tcnn::GPUMemory<TrainingImageMetadata> metadata_normal_gpu;
+			tcnn::GPUMemory<TrainingImageMetadata> metadata_albedo_gpu;
 
 			std::vector<TrainingXForm> transforms;
 			tcnn::GPUMemory<TrainingXForm> transforms_gpu;
@@ -657,9 +656,8 @@ public:
 			void set_camera_intrinsics(int frame_idx, float fx, float fy = 0.0f, float cx = -0.5f, float cy = -0.5f, float k1 = 0.0f, float k2 = 0.0f, float p1 = 0.0f, float p2 = 0.0f);
 			void set_camera_extrinsics(int frame_idx, const Eigen::Matrix<float, 3, 4>& camera_to_world);
 			Eigen::Matrix<float, 3, 4> get_camera_extrinsics(int frame_idx);
-			void update_metadata(int first = 0, int last = -1);
-			void copy_lights_to_gpu();
-			void copy_lights_opti_to_gpu();
+			void update_metadata_normal(int first = 0, int last = -1);
+			void update_metadata_albedo(int first = 0, int last = -1);
 			void update_transforms(int first = 0, int last = -1);
 
 #ifdef NGP_PYTHON

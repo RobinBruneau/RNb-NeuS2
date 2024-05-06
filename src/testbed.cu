@@ -123,7 +123,8 @@ void Testbed::load_training_data(const std::string& data_path) {
 
 void Testbed::clear_training_data() {
 	m_training_data_available = false;
-	m_nerf.training.dataset.metadata.clear();
+	m_nerf.training.dataset.metadata_normal.clear();
+	m_nerf.training.dataset.metadata_albedo.clear();
 }
 
 json Testbed::load_network_config(const fs::path& network_config_path) {
@@ -278,10 +279,10 @@ uint32_t Testbed::get_max_iter() {
 
 void Testbed::set_camera_to_training_view(int trainview) {
 	auto old_look_at = look_at();
-	m_camera = m_smoothed_camera = get_xform_given_rolling_shutter(m_nerf.training.transforms[trainview], m_nerf.training.dataset.metadata[trainview].rolling_shutter, Vector2f{0.5f, 0.5f}, 0.0f);
-	m_relative_focal_length = m_nerf.training.dataset.metadata[trainview].focal_length / (float)m_nerf.training.dataset.metadata[trainview].resolution[m_fov_axis];
+	m_camera = m_smoothed_camera = get_xform_given_rolling_shutter(m_nerf.training.transforms[trainview], m_nerf.training.dataset.metadata_normal[trainview].rolling_shutter, Vector2f{0.5f, 0.5f}, 0.0f);
+	m_relative_focal_length = m_nerf.training.dataset.metadata_normal[trainview].focal_length / (float)m_nerf.training.dataset.metadata_normal[trainview].resolution[m_fov_axis];
 	m_scale = std::max((old_look_at - view_pos()).dot(view_dir()), 0.1f);
-	m_screen_center = Vector2f::Constant(1.0f) - m_nerf.training.dataset.metadata[trainview].principal_point;
+	m_screen_center = Vector2f::Constant(1.0f) - m_nerf.training.dataset.metadata_normal[trainview].principal_point;
 }
 
 void Testbed::reset_camera() {
@@ -1035,7 +1036,7 @@ void Testbed::imgui() {
 void Testbed::visualize_nerf_cameras(ImDrawList* list, const Matrix<float, 4, 4>& world2proj) {
 	if (m_testbed_mode == ETestbedMode::Nerf){
 		for (int i = 0; i < m_nerf.training.n_images_for_training; ++i) {
-			auto res = m_nerf.training.dataset.metadata[i].resolution;
+			auto res = m_nerf.training.dataset.metadata_normal[i].resolution;
 			float aspect = float(res.x())/float(res.y());
 			visualize_nerf_camera(list, world2proj, m_nerf.training.dataset.xforms[i].start, aspect, 0x40ffff40);
 			visualize_nerf_camera(list, world2proj, m_nerf.training.dataset.xforms[i].end, aspect, 0x40ffff40);
@@ -3007,7 +3008,7 @@ void Testbed::render_frame(const Matrix<float, 3, 4>& camera_matrix0, const Matr
 		// Overlay the ground truth image if requested
 		if (m_render_ground_truth) {
 			float alpha=1.f;
-			auto const &metadata = m_nerf.training.dataset.metadata[m_nerf.training.view];
+			auto const &metadata = m_nerf.training.dataset.metadata_albedo[m_nerf.training.view];
 			render_buffer.overlay_image(
 				alpha,
 				Array3f::Constant(m_exposure) + m_nerf.training.cam_exposure[m_nerf.training.view].variable(),
@@ -3040,7 +3041,7 @@ void Testbed::render_frame(const Matrix<float, 3, 4>& camera_matrix0, const Matr
 			const float* aligned_err_data_e = (const float*)(((size_t)(err_data+emap_size))&~15);
 			size_t reduce_size = aligned_err_data_e - aligned_err_data_s;
 			reduce_sum(aligned_err_data_s, [reduce_size] __device__ (float val) { return max(val,0.f) / (reduce_size); }, average_error.data(), reduce_size, m_inference_stream);
-			auto const &metadata = m_nerf.training.dataset.metadata[m_nerf.training.view];
+			auto const &metadata = m_nerf.training.dataset.metadata_albedo[m_nerf.training.view];
 			render_buffer.overlay_false_color(metadata.resolution, to_srgb, m_fov_axis, m_inference_stream, err_data, error_map_res, average_error.data(), m_nerf.training.error_overlay_brightness, m_render_ground_truth);
 		}
 	}
