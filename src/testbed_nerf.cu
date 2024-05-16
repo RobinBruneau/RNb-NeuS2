@@ -1515,6 +1515,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	const float cos_anneal_ratio,
 	const bool apply_L1,
 	const bool apply_light_opti,
+	const bool apply_no_albedo,
 	const TrainingXForm* training_xforms
 ) {
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -1594,44 +1595,22 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		k << -normalGT[1], normalGT[0], 0;
 		k /= k.norm();
 
-
-
 		float cos_theta = normalGT[2];
 		float sin_theta = std::sqrt(1 - cos_theta * cos_theta);
-
-
 
 		Eigen::Matrix3f K;
 		K << 0, -k[2], k[1],
 			k[2], 0, -k[0],
 			-k[1], k[0], 0;
 
-
-
 		Eigen::Matrix3f KK = k * k.transpose();
-
-
-
 		Eigen::Matrix3f R = cos_theta * Eigen::Matrix3f::Identity() + sin_theta * K + (1 - cos_theta) * KK;
-
-
-
 		light_directions = -R * light_directions;
-
 	}
-
 	Eigen::Vector3f light_cam = light_directions.col(random_light);
 	Eigen::Vector3f light = Rt * light_cam;
 
 	float shading_target = activation_function(normal_value.matrix().dot(light_cam), ENerfActivation::ReLU);
-
-	
-	if (i==0){
-		if (texsamp_normal.w() > 0.99){
-			printf("Shading : %f\n",shading_target);
-		}
-	}
-	
 
 	Array3f rgbtarget = albedo_value * shading_target;
 
@@ -1654,7 +1633,14 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		}
 
 		const tcnn::vector_t<tcnn::network_precision_t, 16> local_network_output = *(tcnn::vector_t<tcnn::network_precision_t, 16>*)network_output;
-		const Array3f albedo = network_to_rgb(local_network_output, rgb_activation);
+		Array3f albedo;
+		if (apply_no_albedo){
+			albedo = Array3f(1.0f,1.0f,1.0f);
+		}
+		else {
+			albedo = network_to_rgb(local_network_output, rgb_activation);
+		}
+		 
 		const Vector3f pos = unwarp_position(coords_in.ptr->pos.p, aabb);
 		float dt = unwarp_dt(coords_in.ptr->dt);
 		float cur_depth = (pos - ray_o).norm();
@@ -1745,15 +1731,18 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 
 	
-	
+	float mask_certainty = (float) (texsamp_albedo.w() > 0.99); // 1 should be with color
 	//loss_type = ELossType::L1 ;
 	LossAndGradient lg = loss_and_gradient(rgbtarget, rgb_ray, loss_type); // modification
+	lg.loss *= mask_certainty;
+	lg.gradient *= mask_certainty;
 
 	lg.loss /= img_pdf * xy_pdf;
 
 
 
 	float mask_gt =(float) (texsamp_normal.w() > 0.99); // 1 should be with color
+	
 	float gradient_weight_sum;
 
 	// with softmax?
@@ -1844,7 +1833,14 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 		float dt = unwarp_dt(coord_in->dt);
 		const tcnn::vector_t<tcnn::network_precision_t, 16> local_network_output = *(tcnn::vector_t<tcnn::network_precision_t, 16>*)network_output;
-		const Array3f albedo = network_to_rgb(local_network_output, rgb_activation);
+
+		Array3f albedo;
+		if (apply_no_albedo){
+			albedo = Array3f(1.0f,1.0f,1.0f);
+		}
+		else {
+			albedo = network_to_rgb(local_network_output, rgb_activation);
+		}
 		
 		float inv_s = __expf((tcnn::network_precision_t)10 * local_network_output[7]);
 
@@ -1897,10 +1893,17 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 		tcnn::vector_t<tcnn::network_precision_t, 16> local_dL_doutput;
 
+		//loss_scale *= mask_certainty;
+
+		float opti_rgb = 1.0;
+		if (apply_no_albedo){
+			opti_rgb = 0.0f;
+		}
+
 		// chain rule to go from dloss/drgb to dloss/dmlp_output
-		local_dL_doutput[0] = loss_scale * (dloss_by_drgb.x() * network_to_rgb_derivative(local_network_output[0], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[0])); // Penalize way too large color values
-		local_dL_doutput[1] = loss_scale * (dloss_by_drgb.y() * network_to_rgb_derivative(local_network_output[1], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[1]));
-		local_dL_doutput[2] = loss_scale * (dloss_by_drgb.z() * network_to_rgb_derivative(local_network_output[2], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[2]));
+		local_dL_doutput[0] = opti_rgb  * loss_scale * (dloss_by_drgb.x() * network_to_rgb_derivative(local_network_output[0], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[0])); // Penalize way too large color values
+		local_dL_doutput[1] = opti_rgb  * loss_scale * (dloss_by_drgb.y() * network_to_rgb_derivative(local_network_output[1], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[1]));
+		local_dL_doutput[2] = opti_rgb  * loss_scale * (dloss_by_drgb.z() * network_to_rgb_derivative(local_network_output[2], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[2]));
 
 		const float sum_weight_suffix = weight_sum - weight_sum2;
 
@@ -1985,11 +1988,12 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		bool inside_ek_aabb = ek_aabb.contains(pos);
 	
 		// ek_loss
+
 		local_dL_doutput[4] = (tcnn::network_precision_t)(ek_loss_weight * 2 * original_loss_scale * pos_gradient_norm_inv * pos_gradient[0]);
 		local_dL_doutput[5] = (tcnn::network_precision_t)(ek_loss_weight * 2 * original_loss_scale * pos_gradient_norm_inv * pos_gradient[1]);
 		local_dL_doutput[6] = (tcnn::network_precision_t)(ek_loss_weight * 2 * original_loss_scale * pos_gradient_norm_inv * pos_gradient[2]);
 		
-		local_dL_doutput[7] = (tcnn::network_precision_t)(loss_scale * dloss_dvariance );
+		local_dL_doutput[7] = (tcnn::network_precision_t)(loss_scale*dloss_dvariance);
 
 		#if NORMAL_VECTORS_NORMALIZED
 			float gradient_norm_3 = gradient_norm * gradient_norm * gradient_norm;
@@ -2021,6 +2025,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 			local_dL_doutput[8] = (tcnn::network_precision_t)(loss_scale * (dloss_dn.x() + dloss_dnormal_norm * dir[0]));
 			local_dL_doutput[9] = (tcnn::network_precision_t)(loss_scale * (dloss_dn.y() + dloss_dnormal_norm * dir[1]));
 			local_dL_doutput[10] = (tcnn::network_precision_t)(loss_scale * (dloss_dn.z() + dloss_dnormal_norm * dir[2]));
+
 		#endif
 
 		*(tcnn::vector_t<tcnn::network_precision_t, 16>*)dloss_doutput = local_dL_doutput;
@@ -3971,6 +3976,7 @@ void Testbed::train_nerf_step(uint32_t target_batch_size, uint32_t n_rays_per_ba
 		m_nerf_network->cos_anneal_ratio(),
 		m_apply_L1,
 		m_light_opti,
+		m_no_albedo,
 		m_nerf.training.transforms_gpu.data()
 	);
 

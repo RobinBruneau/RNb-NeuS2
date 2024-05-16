@@ -82,6 +82,13 @@ int main(int argc, char** argv) {
             {"opti-lights"},
     };
 
+    Flag no_albedo_flag{
+            parser,
+            "no-albedo",
+            "To use when albedo map is missing",
+            {"no-albedo"},
+    };
+
     Flag no_train_flag{
             parser,
             "NO_TRAIN",
@@ -174,6 +181,10 @@ int main(int argc, char** argv) {
 
     if (opti_lights_flag){
         testbed.apply_light_opti();
+    }
+
+    if (no_albedo_flag){
+        testbed.apply_no_albedo();
     }
 
     tlog::info() << "Number of iterations : " << testbed.get_max_iter();

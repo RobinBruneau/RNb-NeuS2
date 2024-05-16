@@ -269,6 +269,10 @@ void Testbed::apply_light_opti() {
     m_light_opti = true;
 }
 
+void Testbed::apply_no_albedo() {
+    m_no_albedo = true;
+}
+
 void Testbed::apply_L1() {
     m_apply_L1 = true;
 }
