@@ -57,7 +57,13 @@ class Dataset:
             P = world_mat @ scale_mat
             P = P[:3, :4]
             intrinsics, pose = load_K_Rt_from_P(P)
+            #intrinsics = np.array([[3759.07747101073,0,305.500000000000,0],
+            #[0,3759.00543107133,255.500000000000,0],
+            #        [0,0,1,0],
+            #        [0,0,0,1]])
             self.intrinsics_all.append(intrinsics)
+            root_determinant = np.linalg.det(pose[:3,:3])**(1/3)
+            pose = pose / root_determinant
             self.pose_all.append(pose)
 
         self.intrinsics_all = np.array(self.intrinsics_all)  # [n_images, 4, 4]
@@ -77,7 +83,7 @@ def NeuS_to_NeuS2(inputFolder,outputFolder):
     base_albedo_dir = join(inputFolder, "albedo")
     albedo_folder_exist = os.path.exists(base_albedo_dir)
     base_normal_dir = join(inputFolder, "normal")
-    base_msk_dir = join(inputFolder, "mask")
+    base_msk_dir = join(inputFolder, "mask/")
     base_msk_certainty_dir = join(inputFolder, "mask_certainty")
     msk_certainty_folder_exist = os.path.exists(base_msk_certainty_dir)
     if albedo_folder_exist :
@@ -127,14 +133,22 @@ def NeuS_to_NeuS2(inputFolder,outputFolder):
         msk = cv2.imread(msk_path, -1)
         if len(msk.shape) > 2 :
             msk = msk[:,:,0]
-        if msk.dtype == np.uint8 :
-            msk = (msk/255*(2**16-1)).astype(np.uint16)
+        if msk.dtype == np.uint8:
+            msk = np.where(msk > 125, 1.0, 0.0)
+        else :
+            msk = np.where(msk > 30000, 1.0, 0.0)
+
+        msk = (msk*(2**16-1)).astype(np.uint16)
 
         msk_certainty = cv2.imread(msk_certainty_path, -1)
         if len(msk_certainty.shape) > 2:
             msk_certainty = msk_certainty[:, :, 0]
+
         if msk_certainty.dtype == np.uint8:
-            msk_certainty = (msk_certainty / 255 * (2 ** 16 - 1)).astype(np.uint16)
+            msk_certainty = np.where(msk_certainty > 125, 1.0, 0.0)
+        else :
+            msk_certainty = np.where(msk_certainty > 30000, 1.0, 0.0)
+        msk_certainty = (msk_certainty * (2 ** 16 - 1)).astype(np.uint16)
 
 
         if img_albedo.dtype == np.uint8 :

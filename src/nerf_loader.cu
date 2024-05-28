@@ -676,36 +676,19 @@ NerfDataset load_nerf(const std::vector<filesystem::path>& jsonpaths, float shar
 			};
 
 
-			// x_fov is in degrees, camera_angle_x in radians. Yes, it's silly.
-			float x_fl = read_focal_length(dst_albedo.res.x(), "x");
-			float y_fl = read_focal_length(dst_albedo.res.y(), "y");
-
-			if (x_fl != 0) {
-				result.metadata_normal[i_img].focal_length = Vector2f::Constant(x_fl);
-				result.metadata_albedo[i_img].focal_length = Vector2f::Constant(x_fl);
-				if (y_fl != 0) {
-					result.metadata_normal[i_img].focal_length.y() = y_fl;
-					result.metadata_albedo[i_img].focal_length.y() = y_fl;
-				}
-			} else if (y_fl != 0) {
-				result.metadata_normal[i_img].focal_length = Vector2f::Constant(y_fl);
-				result.metadata_albedo[i_img].focal_length = Vector2f::Constant(y_fl);
-			} else {
-				if (frame.contains("intrinsic_matrix")){
-					const auto& intrinsic = frame["intrinsic_matrix"];
-					result.metadata_normal[i_img].focal_length.x() = float(intrinsic[0][0]);
-					result.metadata_normal[i_img].focal_length.y() = float(intrinsic[1][1]);
-					result.metadata_normal[i_img].principal_point.x() = float(intrinsic[0][2])/(float)json["w"];
-					result.metadata_normal[i_img].principal_point.y() = float(intrinsic[1][2])/(float)json["h"];
-					result.metadata_albedo[i_img].focal_length.x() = float(intrinsic[0][0]);
-					result.metadata_albedo[i_img].focal_length.y() = float(intrinsic[1][1]);
-					result.metadata_albedo[i_img].principal_point.x() = float(intrinsic[0][2])/(float)json["w"];
-					result.metadata_albedo[i_img].principal_point.y() = float(intrinsic[1][2])/(float)json["h"];	
-				}
-				else{
-					throw std::runtime_error{"Couldn't read fov."};
-				}
-			}
+			
+			const auto& intrinsic = frame["intrinsic_matrix"];
+			result.metadata_normal[i_img].focal_length.x() = float(intrinsic[0][0]);
+			result.metadata_normal[i_img].focal_length.y() = float(intrinsic[1][1]);
+			result.metadata_normal[i_img].s0 = float(intrinsic[0][1]);
+			result.metadata_normal[i_img].principal_point.x() = float(intrinsic[0][2])/(float)json["w"];
+			result.metadata_normal[i_img].principal_point.y() = float(intrinsic[1][2])/(float)json["h"];
+			result.metadata_albedo[i_img].focal_length.x() = float(intrinsic[0][0]);
+			result.metadata_albedo[i_img].focal_length.y() = float(intrinsic[1][1]);
+			result.metadata_albedo[i_img].s0 = float(intrinsic[0][1]);
+			result.metadata_albedo[i_img].principal_point.x() = float(intrinsic[0][2])/(float)json["w"];
+			result.metadata_albedo[i_img].principal_point.y() = float(intrinsic[1][2])/(float)json["h"];	
+				
 
 			result.metadata_normal[i_img].rolling_shutter = rolling_shutter;
 			result.metadata_normal[i_img].camera_distortion = camera_distortion;

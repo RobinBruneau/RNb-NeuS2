@@ -45,6 +45,7 @@ struct TrainingImageMetadata {
 	Eigen::Vector2f focal_length = Eigen::Vector2f::Constant(1000.f);
 	Eigen::Vector4f rolling_shutter = Eigen::Vector4f::Zero();
 	Eigen::Vector3f light_dir = Eigen::Vector3f::Constant(0.f); // TODO: replace this with more generic float[] of task-specific metadata.
+	float s0 = 0.0f;
 };
 
 struct InterfaceMetadata {

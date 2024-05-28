@@ -11,15 +11,15 @@ case="$1"
 
 # Execute commands with the provided folder path
 ./build/testbed --scene "${case}/NeuS2/NeuS2_l60/" \
-    --maxiter 5000 --save-mesh --save-snapshot --mask-weight 1.0 --no-gui
+    --maxiter 5000 --save-mesh --save-snapshot --mask-weight 1.0 --no-gui --no-albedo
 
 ./build/testbed --scene "${case}/NeuS2/NeuS2_l60/" \
     --maxiter 15000 --save-mesh --save-snapshot --mask-weight 0.3 \
-    --snapshot "${case}/NeuS2/NeuS2_l60/snapshot_5000.msgpack" --no-gui
+    --snapshot "${case}/NeuS2/NeuS2_l60/snapshot_5000.msgpack" --no-gui --no-albedo
 
 ./build/testbed --opti-lights --scene "${case}/NeuS2/NeuS2_lopti/" \
     --maxiter 25000 --save-mesh --save-snapshot --mask-weight 0.3 \
-    --snapshot "${case}/NeuS2/NeuS2_l60/snapshot_15000.msgpack" --no-gui
+    --snapshot "${case}/NeuS2/NeuS2_l60/snapshot_15000.msgpack" --no-gui --no-albedo
 
 # Create result directory if not exists
 mkdir -p "${case}/result/"

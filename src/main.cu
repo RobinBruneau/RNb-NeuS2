@@ -267,7 +267,8 @@ int main(int argc, char** argv) {
 
     if (save_mesh_flag){
         tlog::info() << "SAVING";
-        testbed.compute_and_save_marching_cubes_mesh(obj_filename_buf,Eigen::DenseBase<Eigen::Vector3i>::Constant(1024),{},0.0f,false);
+        Eigen::Vector3i resMesh(1024, 1024, 1024);
+        testbed.compute_and_save_marching_cubes_mesh(obj_filename_buf,resMesh,{},0.0f,false);
     }
 
     std::string  snpashot_filename = folder_name +"/snapshot_"+to_string(testbed.get_max_iter())+".msgpack";
