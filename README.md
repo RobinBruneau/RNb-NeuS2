@@ -34,16 +34,6 @@ git clone https://github.com/RobinBruneau/RNb_NeuS2/
 cd RNb_NeuS2
 ```
 
-Then use CMake to build the preprocess (OpenCV, Eigen and  nlohmann-json required) : 
-
-```
-(sudo apt-get install nlohmann-json3-dev)
-cd preprocess
-cmake .
-make
-cd ..
-```
-
 And use CMake to build the project (follow NeuS2 requirements) : 
 
 ```
@@ -65,21 +55,11 @@ You will also need Python with the following libraries :
 ## Training
 
 ```
-python ./preprocess/preprocess.py --folder ./data/FOLDER/
-./run_3steps ./data/FOLDER/
-```
-For _l60 folder : 
-```
-python ./preprocess/preprocess.py --folder ./data/FOLDER/
-./build/testbed --scene .data/FOLDER/NeuS2/NeuS2_l60/ --maxiter 15000 --save-mesh --mask-weight 0.3
-```
-For _lopti folder : 
-```
-python ./preprocess/preprocess.py --folder ./data/FOLDER/
-./build/testbed --scene .data/FOLDER/NeuS2/NeuS2_lopti/ ----opti-lights --maxiter 15000 --save-mesh --mask-weight 0.3
+python ./preprocess/preprocess_no_lights.py --folder ./data/FOLDER/
+./run_3steps_finger.sh ./data/FOLDER/
 ```
 
-You can use the following options :
+You can use/change the following options in the run_3steps_finger.sh :
 ```
 --scene FOLDER (path to your data)
 --maxiter INT (the number of iterations to compute)
@@ -99,15 +79,19 @@ You can download here data from DiLiGenT-MV in the expected convention after som
 - We expect the following convention : 
 ```
 ./data/FOLDER/
-    albedo/
+    (albedo/       # remove it if you want white albedos
         000.png
         001.png
-        ...
+        ...)
     normal/
         000.png
         001.png
         002.png
     mask/
+        000.png
+        001.png
+        002.png
+    mask_certainty/  # it's just a copy of mask
         000.png
         001.png
         002.png
