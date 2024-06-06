@@ -40,11 +40,25 @@ int main(int argc, char** argv) {
             {'h', "help"},
     };
 
-	Flag lone_flag{
+	Flag ltwo_flag{
             parser,
-            "LONE",
-            "Activate lone between normals !",
-            {'l',"lone"},
+            "L_TWO",
+            "Activate l_two between colors !",
+            {"ltwo"},
+    };
+
+    Flag relu_flag{
+            parser,
+            "RELU",
+            "Activate ReLU for shading !",
+            {"relu"},
+    };
+
+    Flag bce_flag{
+            parser,
+            "BCE",
+            "Apply BCE mask loss instead of Sigmoid BCE !",
+            {"bce"},
     };
 
     ValueFlag<string> network_config_flag{
@@ -85,7 +99,7 @@ int main(int argc, char** argv) {
     Flag no_albedo_flag{
             parser,
             "no-albedo",
-            "To use when albedo map is missing",
+            "To use when you don't want to optimize the albedo",
             {"no-albedo"},
     };
 
@@ -117,12 +131,20 @@ int main(int argc, char** argv) {
             {"width"},
     };
 
+    ValueFlag<uint32_t> resolution_flag{
+            parser,
+            "RESOLUTION",
+            "Resolution used for marching cube",
+            {"resolution"},
+    };
+
     ValueFlag<uint32_t> height_flag{
             parser,
             "HEIGHT",
             "Resolution height of the GUI.",
             {"height"},
     };
+
 
     ValueFlag<uint32_t> max_iter_flag{
             parser,
@@ -175,8 +197,14 @@ int main(int argc, char** argv) {
         testbed.set_max_iter(get(max_iter_flag));
     }
 
-    if (lone_flag){
-        testbed.apply_L1();
+    if (ltwo_flag){
+        testbed.apply_L2();
+    }
+    if (bce_flag){
+        testbed.apply_bce();
+    }
+    if (relu_flag){
+        testbed.apply_relu();
     }
 
     if (opti_lights_flag){
@@ -267,7 +295,12 @@ int main(int argc, char** argv) {
 
     if (save_mesh_flag){
         tlog::info() << "SAVING";
-        Eigen::Vector3i resMesh(1024, 1024, 1024);
+        Eigen::Vector3i resMesh(512, 512, 512);
+        if (resolution_flag){
+            resMesh[0] = get(resolution_flag);
+            resMesh[1] = get(resolution_flag);
+            resMesh[2] = get(resolution_flag);
+        }
         testbed.compute_and_save_marching_cubes_mesh(obj_filename_buf,resMesh,{},0.0f,false);
     }
 

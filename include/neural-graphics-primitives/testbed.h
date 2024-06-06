@@ -319,7 +319,9 @@ public:
 	void apply_light_opti();
 	void apply_no_albedo();
 	void apply_normalization();
-	void apply_L1();
+	void apply_L2();
+	void apply_bce();
+	void apply_relu();
     uint32_t get_max_iter();
 	void set_view_dir(const Eigen::Vector3f& dir);
 	void set_camera_to_training_view(int trainview);
@@ -496,7 +498,9 @@ public:
 	bool m_apply_normalization = false;
 	bool m_light_opti = false;
 	bool m_no_albedo = false;
-	bool m_apply_L1 = false;
+	bool m_apply_L2 = false;
+	bool m_apply_bce = false;
+	bool m_apply_relu = false;
 	float m_prev_scale = 1.0;
 	float m_dof = 0.0f;
 	Eigen::Vector2f m_relative_focal_length = Eigen::Vector2f::Ones();

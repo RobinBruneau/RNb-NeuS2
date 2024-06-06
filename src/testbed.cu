@@ -273,8 +273,16 @@ void Testbed::apply_no_albedo() {
     m_no_albedo = true;
 }
 
-void Testbed::apply_L1() {
-    m_apply_L1 = true;
+void Testbed::apply_L2() {
+    m_apply_L2 = true;
+}
+
+void Testbed::apply_bce() {
+    m_apply_bce = true;
+}
+
+void Testbed::apply_relu() {
+    m_apply_relu = true;
 }
 
 uint32_t Testbed::get_max_iter() {

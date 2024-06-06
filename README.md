@@ -54,9 +54,13 @@ You will also need Python with the following libraries :
 
 ## Training
 
+Data preprocessing : 
 ```
-python ./preprocess/preprocess_no_lights.py --folder ./data/FOLDER/
-./run_3steps_finger.sh ./data/FOLDER/
+python ./preprocess/preprocess.py --folder ./data/FOLDER/
+```
+Run optimisation : 
+```
+./run.sh ./data/FOLDER/RNb-NeuS/
 ```
 
 You can use/change the following options in the run_3steps_finger.sh :
@@ -66,6 +70,8 @@ You can use/change the following options in the run_3steps_finger.sh :
 --mask-weight FLOAT (the weight of the mask loss)
 --save-mesh (extract the mesh at the end)
 --save-snapshot (save the neural weights)
+--no-albedo (to only train on normals)
+--resolution INT (to change the resolution used for marching cube [default 512]) 
 --no-gui (run the optimization without GUI)
 
 ```
@@ -79,19 +85,19 @@ You can download here data from DiLiGenT-MV in the expected convention after som
 - We expect the following convention : 
 ```
 ./data/FOLDER/
-    (albedo/       # remove it if you want white albedos
-        000.png
-        001.png
-        ...)
-    normal/
+    albedo/          # (Optional)
         000.png
         001.png
         002.png
-    mask/
+    normal/          # (Mandatory)
         000.png
         001.png
         002.png
-    mask_certainty/  # it's just a copy of mask
+    mask/            # (Mandatory) Mask used for mask loss
+        000.png
+        001.png
+        002.png
+    mask_certainty/  # (Optional) Mask used for the rgb loss (normals/albedos)
         000.png
         001.png
         002.png
