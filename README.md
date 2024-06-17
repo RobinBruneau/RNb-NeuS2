@@ -1,3 +1,3 @@
 # RNb-NeuS2
 
-Coming soon (before CVPR 2024 conference) !
+Coming soon (around CVPR 2024 conference) !
