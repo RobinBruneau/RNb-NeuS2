@@ -74,7 +74,7 @@
         "predict_global_movement": true,
         "predict_global_movement_training_step": 100,
         "finetune_global_movement": true,
-        "mask_loss_weight": 0.3,
+        "mask_loss_weight": 1.0,
         "ek_loss_weight": 0.01,
         "reset_density_grid_after_global_movement": false,
         "incremental_reinit_sdf_mlp": false,

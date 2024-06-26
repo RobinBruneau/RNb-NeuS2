@@ -881,6 +881,7 @@ void save_mesh(
 		throw std::runtime_error{"Failed to open " + std::string(outputname) + " for writing."};
 	}
 
+	printf("%f , [%f %f %f]\n",n2w_s,n2w_t.x(),n2w_t.y(),n2w_t.z());
 	if (fs::path(outputname).extension() == "ply") {
 		// ply file
 		fprintf(f,
@@ -903,6 +904,7 @@ void save_mesh(
 			, (unsigned int)cpuverts.size()
 			, (unsigned int)cpuindices.size()/3
 		);
+		
 		for (size_t i=0;i<cpuverts.size();++i) {
 			Vector3f p=(cpuverts[i]-nerf_offset)/nerf_scale;
 			p = n2w_s*p + n2w_t;

@@ -1326,6 +1326,7 @@ __global__ void generate_training_samples_nerf_with_global_movement(
 
 	const Vector2f focal_length = metadata[img].focal_length;
 	const Vector2f principal_point = metadata[img].principal_point;
+	const float s0 = metadata[img].s0;
 
 	const float* extra_dims = extra_dims_gpu + img * n_extra_dims;
 	const CameraDistortion camera_distortion = metadata[img].camera_distortion;
@@ -1343,6 +1344,11 @@ __global__ void generate_training_samples_nerf_with_global_movement(
 			(xy.y()-principal_point.y())*resolution.y() / focal_length.y(),
 			1.0f,
 		};
+		//if (i == 0){
+		//	printf("%f %f %d %f\n",xy.x(),principal_point.x(),resolution.x(),focal_length.x());
+		//	printf("%f %f %d %f\n\n",xy.y(),principal_point.y(),resolution.y(),focal_length.y());
+		//}
+		
 
 		if (camera_distortion.mode == ECameraDistortionMode::Iterative) {
 			iterative_camera_undistortion(camera_distortion.params, &ray_unnormalized.d.x(), &ray_unnormalized.d.y());
@@ -1513,7 +1519,9 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	const float mask_loss_weight,
 	const float ek_loss_weight,
 	const float cos_anneal_ratio,
-	const bool apply_L1,
+	const bool apply_L2,
+	const bool apply_relu,
+	const bool apply_bce,
 	const bool apply_light_opti,
 	const bool apply_no_albedo,
 	const TrainingXForm* training_xforms
@@ -1565,7 +1573,13 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	normal_value[2] *= -1;
 	normal_value /= normal_value.matrix().norm();
 
-	Array3f albedo_value = linear_to_srgb(exposure_scale * texsamp_albedo.head<3>());
+	Array3f albedo_value;
+	if (apply_no_albedo){
+		albedo_value = Eigen::Array3f::Constant(1.0f);
+	}
+	else {
+		albedo_value = linear_to_srgb(exposure_scale * texsamp_albedo.head<3>());
+	}
 
 	auto radians = [](float deg) { return deg * M_PI / 180.0f; };
 	Eigen::Vector3f tilt = {radians(0.0f),radians(120.0f),radians(240.0f)};
@@ -1610,8 +1624,14 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	Eigen::Vector3f light_cam = light_directions.col(random_light);
 	Eigen::Vector3f light = Rt * light_cam;
 
-	float shading_target = activation_function(normal_value.matrix().dot(light_cam), ENerfActivation::ReLU);
-
+	float shading_target;
+	if (apply_relu){ // Apply ReLU to shading in the 2.5 target shading
+		shading_target = activation_function(normal_value.matrix().dot(light_cam), ENerfActivation::ReLU);
+	}
+	else{
+		shading_target = normal_value.matrix().dot(light_cam);
+	}
+	 
 	Array3f rgbtarget = albedo_value * shading_target;
 
 	ray_o -= first_frame_offset;
@@ -1681,8 +1701,14 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 		const float weight = alpha * T;
 		Vector3f normal = pos_gradient.matrix();
-		float shading = activation_function(normal.dot(light), ENerfActivation::ReLU);
-		//float shading = normal.dot(light);
+
+		float shading;
+		if (apply_relu){ // Apply ReLU to shading
+ 			shading = activation_function(normal.dot(light), ENerfActivation::ReLU);
+		}
+		else {
+			shading = normal.dot(light);
+		}
 		rgb_ray += weight * albedo * shading ; // modification TODO
 		hitpoint += weight * pos;
 		depth_ray += weight * cur_depth;
@@ -1732,7 +1758,12 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 	
 	float mask_certainty = (float) (texsamp_albedo.w() > 0.99); // 1 should be with color
-	//loss_type = ELossType::L1 ;
+
+	loss_type = ELossType::L1 ; // Define a default L1 loss
+	if (apply_L2){ // Change to a L2 loss
+		loss_type = ELossType::L2;
+	}
+
 	LossAndGradient lg = loss_and_gradient(rgbtarget, rgb_ray, loss_type); // modification
 	lg.loss *= mask_certainty;
 	lg.gradient *= mask_certainty;
@@ -1740,13 +1771,10 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	lg.loss /= img_pdf * xy_pdf;
 
 
-
 	float mask_gt =(float) (texsamp_normal.w() > 0.99); // 1 should be with color
 	
 	float gradient_weight_sum;
 
-	// with softmax?
-	// mask loss = - (mask_gt * log(sigmoid(weight_sum)) ...
 	if (weight_sum >= 1.0 - 1e-4){
 		weight_sum = 1.0 - 1e-4;
 		gradient_weight_sum = 0.0f;
@@ -1757,7 +1785,13 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	}
 	else{
 		float sigmoid_weight_sum = 1.0f / ( 1.0f + exp(-weight_sum));
-		gradient_weight_sum = (sigmoid_weight_sum - mask_gt) * weight_sum * mask_loss_weight;
+
+		if (apply_bce){ // Classic BCE loss
+			gradient_weight_sum = ((1 - mask_gt)/(1-weight_sum) - mask_gt/weight_sum) * mask_loss_weight;
+		}
+		else { // Sigmoid BCE loss
+			gradient_weight_sum = (sigmoid_weight_sum - mask_gt) * mask_loss_weight;
+		}
 	}
 	
 	// Note: dividing the gradient by the PDF would cause unbiased loss estimates.
@@ -1771,9 +1805,14 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		loss_output[i] = mean_loss / (float)n_rays;
 	}
 
-	if (mask_loss_output) { // mask loss, binary cross entropy
+	if (mask_loss_output) { 
 		float sigmoid_weight_sum = 1.0f / ( 1.0f + exp(-weight_sum));
-		mask_loss_output[i] = - (mask_gt * log(sigmoid_weight_sum) + (1 - mask_gt) * log(1 - sigmoid_weight_sum));
+		if (apply_bce){  // Classic BCE loss
+			mask_loss_output[i] = - (mask_gt * log(weight_sum) + (1 - mask_gt) * log(1 - weight_sum));
+		}
+		else { // Sigmoid BCE loss
+			mask_loss_output[i] = - (mask_gt * log(sigmoid_weight_sum) + (1 - mask_gt) * log(1 - sigmoid_weight_sum));
+		}
 	}
 
 	if (ek_loss_output) {
@@ -1869,8 +1908,14 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 		const float weight = alpha * T;
 		Vector3f normal = pos_gradient.matrix();
-		float shading = activation_function(normal.dot(light), ENerfActivation::ReLU);
-		//float shading = normal.dot(light);
+
+		float shading;
+		if (apply_relu){
+ 			shading = activation_function(normal.dot(light), ENerfActivation::ReLU);
+		}
+		else {
+			shading = normal.dot(light);
+		}
 		rgb_ray2 += weight * albedo * shading; // modification
 		depth_ray2 += weight * depth;
 		weight_sum2 += weight;
@@ -1884,16 +1929,11 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		Matrix3f light_albedo = light * albedo_transpose;
 		dloss_dn = weight * light_albedo * lg.gradient.matrix(); // modification : pas sur du tout ! produit matriciel ?
 		
-		if (shading <= 0.f){
-			dloss_dn = Vector3f::Zero();
-		}
-		
+
 		const Array3f dloss_by_drgb = weight * shading * lg.gradient;
 		
 
 		tcnn::vector_t<tcnn::network_precision_t, 16> local_dL_doutput;
-
-		//loss_scale *= mask_certainty;
 
 		float opti_rgb = 1.0;
 		if (apply_no_albedo){
@@ -1901,9 +1941,9 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		}
 
 		// chain rule to go from dloss/drgb to dloss/dmlp_output
-		local_dL_doutput[0] = opti_rgb  * loss_scale * (dloss_by_drgb.x() * network_to_rgb_derivative(local_network_output[0], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[0])); // Penalize way too large color values
-		local_dL_doutput[1] = opti_rgb  * loss_scale * (dloss_by_drgb.y() * network_to_rgb_derivative(local_network_output[1], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[1]));
-		local_dL_doutput[2] = opti_rgb  * loss_scale * (dloss_by_drgb.z() * network_to_rgb_derivative(local_network_output[2], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[2]));
+		local_dL_doutput[0] = opti_rgb  * loss_scale * (dloss_by_drgb.x() * network_to_rgb_derivative(local_network_output[0], rgb_activation));//+ fmaxf(0.0f, output_l2_reg * (float)local_network_output[0])); // Penalize way too large color values
+		local_dL_doutput[1] = opti_rgb  * loss_scale * (dloss_by_drgb.y() * network_to_rgb_derivative(local_network_output[1], rgb_activation)) ;//+ fmaxf(0.0f, output_l2_reg * (float)local_network_output[1]));
+		local_dL_doutput[2] = opti_rgb  * loss_scale * (dloss_by_drgb.z() * network_to_rgb_derivative(local_network_output[2], rgb_activation)) ;//+ fmaxf(0.0f, output_l2_reg * (float)local_network_output[2]));
 
 		const float sum_weight_suffix = weight_sum - weight_sum2;
 
@@ -3974,7 +4014,9 @@ void Testbed::train_nerf_step(uint32_t target_batch_size, uint32_t n_rays_per_ba
 		m_mask_loss_weight,
 		m_ek_loss_weight,
 		m_nerf_network->cos_anneal_ratio(),
-		m_apply_L1,
+		m_apply_L2,
+		m_apply_relu,
+		m_apply_bce,
 		m_light_opti,
 		m_no_albedo,
 		m_nerf.training.transforms_gpu.data()
@@ -4238,6 +4280,8 @@ int Testbed::marching_cubes(Vector3i res3d, const BoundingBox& aabb, float thres
 	res3d.x() = next_multiple((unsigned int)res3d.x(), 16u);
 	res3d.y() = next_multiple((unsigned int)res3d.y(), 16u);
 	res3d.z() = next_multiple((unsigned int)res3d.z(), 16u);
+
+	tlog::info() << res3d.x() << res3d.y() << res3d.z() ;
 
 	if (thresh == std::numeric_limits<float>::max()) {
 		thresh = m_mesh.thresh;
