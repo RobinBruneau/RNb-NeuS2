@@ -1,16 +1,31 @@
 #!/bin/bash
 
 # Check if folder path is provided as argument
-if [ $# -ne 2 ]; then
-    echo "Usage: $0 <folder_path> <--no-albedo or none>"
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <folder_path> [--no-albedo | --l2]"
     exit 1
 fi
 
 # Assign folder path to a variable
 case="$1"
 
-local flags=""
-[ "$2" == "--no-albedo" ] && flags+=" --no-albedo"
+# Initialize flags variable
+flags=""
+if [ $# -ge 2 ]; then
+    case "$2" in
+        --no-albedo)
+            flags+=" --no-albedo"
+            ;;
+        --ltwo)
+            flags+=" --ltwo"
+            ;;
+        *)
+            echo "Invalid option: $2"
+            echo "Usage: $0 <folder_path> [--no-albedo | --l2]"
+            exit 1
+            ;;
+    esac
+fi
 
 iterWarmupMask="5000"
 iterWarmupLightGlobal="15000"
