@@ -34,16 +34,6 @@ git clone https://github.com/RobinBruneau/RNb_NeuS2/
 cd RNb_NeuS2
 ```
 
-Then use CMake to build the preprocess (OpenCV, Eigen and  nlohmann-json required) : 
-
-```
-(sudo apt-get install nlohmann-json3-dev)
-cd preprocess
-cmake .
-make
-cd ..
-```
-
 And use CMake to build the project (follow NeuS2 requirements) : 
 
 ```
@@ -64,28 +54,24 @@ You will also need Python with the following libraries :
 
 ## Training
 
+Data preprocessing : 
 ```
 python ./preprocess/preprocess.py --folder ./data/FOLDER/
-./run_3steps ./data/FOLDER/
 ```
-For _l60 folder : 
+Run optimisation : 
 ```
-python ./preprocess/preprocess.py --folder ./data/FOLDER/
-./build/testbed --scene .data/FOLDER/NeuS2/NeuS2_l60/ --maxiter 15000 --save-mesh --mask-weight 0.3
-```
-For _lopti folder : 
-```
-python ./preprocess/preprocess.py --folder ./data/FOLDER/
-./build/testbed --scene .data/FOLDER/NeuS2/NeuS2_lopti/ ----opti-lights --maxiter 15000 --save-mesh --mask-weight 0.3
+./run.sh ./data/FOLDER/RNb-NeuS/
 ```
 
-You can use the following options :
+You can use/change the following options in the run_3steps_finger.sh :
 ```
 --scene FOLDER (path to your data)
 --maxiter INT (the number of iterations to compute)
 --mask-weight FLOAT (the weight of the mask loss)
 --save-mesh (extract the mesh at the end)
 --save-snapshot (save the neural weights)
+--no-albedo (to only train on normals)
+--resolution INT (to change the resolution used for marching cube [default 512]) 
 --no-gui (run the optimization without GUI)
 
 ```
@@ -99,15 +85,19 @@ You can download here data from DiLiGenT-MV in the expected convention after som
 - We expect the following convention : 
 ```
 ./data/FOLDER/
-    albedo/
-        000.png
-        001.png
-        ...
-    normal/
+    albedo/          # (Optional)
         000.png
         001.png
         002.png
-    mask/
+    normal/          # (Mandatory)
+        000.png
+        001.png
+        002.png
+    mask/            # (Mandatory) Mask used for mask loss
+        000.png
+        001.png
+        002.png
+    mask_certainty/  # (Optional) Mask used for the rgb loss (normals/albedos)
         000.png
         001.png
         002.png

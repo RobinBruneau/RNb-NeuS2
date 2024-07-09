@@ -57,7 +57,13 @@ class Dataset:
             P = world_mat @ scale_mat
             P = P[:3, :4]
             intrinsics, pose = load_K_Rt_from_P(P)
+            #intrinsics = np.array([[3759.07747101073,0,305.500000000000,0],
+            #[0,3759.00543107133,255.500000000000,0],
+            #        [0,0,1,0],
+            #        [0,0,0,1]])
             self.intrinsics_all.append(intrinsics)
+            root_determinant = np.linalg.det(pose[:3,:3])**(1/3)
+            pose = pose / root_determinant
             self.pose_all.append(pose)
 
         self.intrinsics_all = np.array(self.intrinsics_all)  # [n_images, 4, 4]
@@ -74,24 +80,24 @@ def NeuS_to_NeuS2(inputFolder,outputFolder):
     }
     dataset = Dataset(conf)
 
-    lights = []
-    try :
-        f=open(inputFolder+"/lights_60.json",'r')
-        dataLight_60 = json.load(f)
-        f.close()
-        for k in range(dataset.n_images) :
-            lights.append([[dataLight_60[9*k],dataLight_60[9*k+1],dataLight_60[9*k+2]],
-                           [dataLight_60[9*k+3],dataLight_60[9*k+4],dataLight_60[9*k+5]],
-                           [dataLight_60[9*k+6],dataLight_60[9*k+7],dataLight_60[9*k+8]]])
-        a=0
-    except :
-        a=0
-
-    base_rgb_dir = join(inputFolder, "image")
-    base_msk_dir = join(inputFolder, "mask")
-    all_images = sorted(os.listdir(base_rgb_dir))
+    base_albedo_dir = join(inputFolder, "albedo")
+    albedo_folder_exist = os.path.exists(base_albedo_dir)
+    base_normal_dir = join(inputFolder, "normal")
+    base_msk_dir = join(inputFolder, "mask/")
+    base_msk_certainty_dir = join(inputFolder, "mask_certainty")
+    msk_certainty_folder_exist = os.path.exists(base_msk_certainty_dir)
+    if albedo_folder_exist :
+        all_images_albedo = sorted(os.listdir(base_albedo_dir))
+    else :
+        all_images_albedo = sorted(os.listdir(base_normal_dir))
+    all_images_normal = sorted(os.listdir(base_normal_dir))
     all_masks = sorted(os.listdir(base_msk_dir))
-    mult = len(all_images) // len(all_masks)
+
+    if msk_certainty_folder_exist :
+        all_masks_certainty = sorted(os.listdir(base_msk_certainty_dir))
+    else :
+        all_masks_certainty = sorted(os.listdir(base_normal_dir))
+
     def copy_directories(root_src_dir, root_dst_dir):
         for src_dir, dirs, files in os.walk(root_src_dir):
             dst_dir = src_dir.replace(root_src_dir, root_dst_dir, 1)
@@ -104,24 +110,59 @@ def NeuS_to_NeuS2(inputFolder,outputFolder):
                     os.remove(dst_file)
                 shutil.copy(src_file, dst_dir)
 
-    new_image_dir = join(outputFolder, "images")
-    os.makedirs(new_image_dir, exist_ok=True)
+    new_albedo_dir = join(outputFolder, "albedos")
+    new_normal_dir = join(outputFolder, "normals")
+    os.makedirs(new_albedo_dir, exist_ok=True)
+    os.makedirs(new_normal_dir, exist_ok=True)
     for i in range(len(all_masks)):
-        for j in range(mult):
-            img_name = all_images[mult*i+j]
-            msk_name = all_masks[i]
-            img_path = join(base_rgb_dir, img_name)
-            msk_path = join(base_msk_dir, msk_name)
+        img_albedo_name = all_images_albedo[i]
+        img_normal_name = all_images_normal[i]
+        msk_name = all_masks[i]
+        msk_certainty_name = all_masks_certainty[i]
+        img_albedo_path = join(base_albedo_dir, img_albedo_name)
+        img_normal_path = join(base_normal_dir, img_normal_name)
+        msk_path = join(base_msk_dir, msk_name)
+        msk_certainty_path = join(base_msk_certainty_dir, msk_certainty_name)
 
-            img = cv2.imread(img_path,-1)
-          
-            msk = ((cv2.imread(msk_path, -1).astype(np.uint8)/255)*(2**16 -1)).astype(np.uint16)
-            if len(msk.shape)> 2 : 
-            	msk = msk[:,:,0]
-            
-            image = np.concatenate([img, msk[:, :, np.newaxis]], axis=-1)
-            H, W = image.shape[0], image.shape[1]
-            cv2.imwrite(join(new_image_dir, img_name), image)
+        img_normal = cv2.imread(img_normal_path, -1)[:, :, :3]
+        if albedo_folder_exist :
+            img_albedo = cv2.imread(img_albedo_path,-1)[:,:,:3]
+        else :
+            img_albedo = (np.ones_like(img_normal)*(2**16-1)).astype(np.uint16)
+
+        msk = cv2.imread(msk_path, -1)
+        if len(msk.shape) > 2 :
+            msk = msk[:,:,0]
+        if msk.dtype == np.uint8:
+            msk = np.where(msk > 125, 1.0, 0.0)
+        else :
+            msk = np.where(msk > 30000, 1.0, 0.0)
+
+        msk = (msk*(2**16-1)).astype(np.uint16)
+
+        msk_certainty = cv2.imread(msk_certainty_path, -1)
+        if len(msk_certainty.shape) > 2:
+            msk_certainty = msk_certainty[:, :, 0]
+
+        if msk_certainty.dtype == np.uint8:
+            msk_certainty = np.where(msk_certainty > 125, 1.0, 0.0)
+        else :
+            msk_certainty = np.where(msk_certainty > 30000, 1.0, 0.0)
+        msk_certainty = (msk_certainty * (2 ** 16 - 1)).astype(np.uint16)
+
+
+        if img_albedo.dtype == np.uint8 :
+            img_albedo = (img_albedo/255*(2**16-1)).astype(np.uint16)
+        if img_normal.dtype == np.uint8 :
+            img_normal = (img_normal/255*(2**16-1)).astype(np.uint16)
+
+        image_albedo = np.concatenate([img_albedo, msk_certainty[:, :, np.newaxis]], axis=-1)
+        H, W = image_albedo.shape[0], image_albedo.shape[1]
+        cv2.imwrite(join(new_albedo_dir, img_albedo_name), image_albedo)
+
+        image_normal = np.concatenate([img_normal, msk[:, :, np.newaxis]], axis=-1)
+        H, W = image_normal.shape[0], image_normal.shape[1]
+        cv2.imwrite(join(new_normal_dir, img_normal_name), image_normal)
 
     output = {
         "w": W,
@@ -139,25 +180,25 @@ def NeuS_to_NeuS2(inputFolder,outputFolder):
     output.update({"n2w": dataset.scale_mats_np[0].tolist()})
 
     output['frames'] = []
-    all_mask_dir = sorted(os.listdir(join(outputFolder, "mask")))
-    all_image_dir = sorted(os.listdir(join(outputFolder, "image")))
+    all_mask_dir = sorted(os.listdir(join(inputFolder, "mask")))
+    if albedo_folder_exist :
+        all_albedo_dir = sorted(os.listdir(join(inputFolder, "albedo")))
+    else :
+        all_albedo_dir = sorted(os.listdir(join(inputFolder, "normal")))
+    all_normal_dir = sorted(os.listdir(join(inputFolder, "normal")))
     mask_num = len(all_mask_dir)
-    image_num = len(all_mask_dir)
     camera_num = dataset.intrinsics_all.shape[0]
     assert mask_num == camera_num, "The number of cameras should be equal to the number of images!"
     for i in range(mask_num):
-        for j in range(mult):
-            rgb_dir = join("images", all_image_dir[mult*i+j])
+            albedo_dir = join("albedos", all_albedo_dir[i])
+            normal_dir = join("normals", all_normal_dir[i])
             ixt = dataset.intrinsics_all[i]
 
             # add one_frame
             one_frame = {}
-            one_frame["file_path"] = rgb_dir
+            one_frame["albedo_path"] = albedo_dir
+            one_frame["normal_path"] = normal_dir
             one_frame["transform_matrix"] = dataset.pose_all[i].tolist()
-            if len(lights) != 0 :
-                one_frame["light"] = lights[i][j]
-            else :
-                one_frame["light"] = [0,0,0]
 
             one_frame["intrinsic_matrix"] = ixt.tolist()
             output['frames'].append(one_frame)
@@ -202,57 +243,13 @@ def cameras_npz_to_json(folder="",camera_file=""):
 
 def preprocess(folder):
 
-    folderName = os.path.basename(os.path.dirname(folder))
-    mainFolder = folder+"/NeuS2/"
-    mainMainFolder = mainFolder + "/NeuS/"
-    mainMainFolder2 = mainFolder + "/NeuS2_l60/"
-    mainMainFolder3 = mainFolder + "/NeuS2_lopti/"
+    mainFolder = folder+"/NeuS2_no_light/"
 
     if os.path.exists(mainFolder):
         shutil.rmtree(mainFolder)
     os.makedirs(mainFolder,exist_ok=True)
-    os.makedirs(mainMainFolder, exist_ok=True)
-    os.makedirs(mainMainFolder2, exist_ok=True)
-    os.makedirs(mainMainFolder3, exist_ok=True)
 
-    shutil.copytree(folder+"/mask/",mainMainFolder+"/mask/")
-
-    shutil.copytree(folder+"/mask/",mainFolder+"/mask/")
-
-    cameras_npz_to_json(folder,folder+"cameras.npz")
-
-    shutil.copyfile(folder+"cameras.npz",mainMainFolder+"cameras.npz")
-
-    shutil.copyfile(folder+"cameras.npz",mainFolder+"cameras.npz")
-
-    os.makedirs(mainFolder+"/image/", exist_ok=True)
-    os.makedirs(mainFolder + "/image_60/", exist_ok=True)
-
-    print("Creating folders for Neus2...")
-    print("Generating RNb images...")
-    os.system("./preprocess/gen_images_light_60_opti {} {}".format(folder,mainFolder))
-
-    shutil.copytree(mainFolder + "/image/",mainMainFolder+"/image/")
-    shutil.copytree(mainFolder + "/image_60/", mainMainFolder + "/image_60/")
-
-    print("Data convertion from NeuS to NeuS2...")
-    NeuS_to_NeuS2(mainFolder,mainFolder)
-    shutil.move(mainFolder + "/images/", mainMainFolder3 + "/images/")
-    shutil.move(mainFolder + "/transform.json",mainMainFolder3 + "/transform.json")
-    shutil.move(mainFolder + "/lights.json", mainMainFolder3 + "/lights.json")
-
-    shutil.rmtree(mainFolder + "/image/")
-    os.rename(mainFolder + "/image_60/",mainFolder + "/image/")
-
-    NeuS_to_NeuS2(mainFolder, mainFolder)
-    shutil.move(mainFolder + "/images/", mainMainFolder2 + "/images/")
-    shutil.move(mainFolder + "/transform.json", mainMainFolder2 + "/transform.json")
-
-    shutil.rmtree(mainFolder + "/image/")
-    shutil.rmtree(mainFolder + "/mask/")
-
-    os.remove(mainFolder+"/cameras.npz")
-    os.remove(mainFolder+"/lights_60.json")
+    NeuS_to_NeuS2(folder,mainFolder)
 
     print("-DONE-")
 
@@ -264,6 +261,3 @@ if __name__ == "__main__":
 
     folder = args.folder
     preprocess(folder)
-
-
-

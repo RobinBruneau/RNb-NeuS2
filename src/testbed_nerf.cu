@@ -12,6 +12,7 @@
 #include <neural-graphics-primitives/render_buffer.h>
 #include <neural-graphics-primitives/testbed.h>
 #include <neural-graphics-primitives/trainable_buffer.cuh>
+#include <curand_kernel.h>
 
 #include <tiny-cuda-nn/encodings/grid.h>
 #include <tiny-cuda-nn/loss.h>
@@ -1325,6 +1326,7 @@ __global__ void generate_training_samples_nerf_with_global_movement(
 
 	const Vector2f focal_length = metadata[img].focal_length;
 	const Vector2f principal_point = metadata[img].principal_point;
+	const float s0 = metadata[img].s0;
 
 	const float* extra_dims = extra_dims_gpu + img * n_extra_dims;
 	const CameraDistortion camera_distortion = metadata[img].camera_distortion;
@@ -1342,6 +1344,11 @@ __global__ void generate_training_samples_nerf_with_global_movement(
 			(xy.y()-principal_point.y())*resolution.y() / focal_length.y(),
 			1.0f,
 		};
+		//if (i == 0){
+		//	printf("%f %f %d %f\n",xy.x(),principal_point.x(),resolution.x(),focal_length.x());
+		//	printf("%f %f %d %f\n\n",xy.y(),principal_point.y(),resolution.y(),focal_length.y());
+		//}
+		
 
 		if (camera_distortion.mode == ECameraDistortionMode::Iterative) {
 			iterative_camera_undistortion(camera_distortion.params, &ray_unnormalized.d.x(), &ray_unnormalized.d.y());
@@ -1470,7 +1477,8 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	bool train_with_random_bg_color,
 	bool train_in_linear_colors,
 	const uint32_t n_training_images,
-	const TrainingImageMetadata* __restrict__ metadata,
+	const TrainingImageMetadata* __restrict__ metadata_normal,
+	const TrainingImageMetadata* __restrict__ metadata_albedo,
 	const tcnn::network_precision_t* network_output,
 	uint32_t* __restrict__ numsteps_counter,
 	const uint32_t* __restrict__ ray_indices_in,
@@ -1511,10 +1519,12 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	const float mask_loss_weight,
 	const float ek_loss_weight,
 	const float cos_anneal_ratio,
-	const bool apply_L1,
-	const Eigen::Vector3f* __restrict__ lights,
+	const bool apply_L2,
+	const bool apply_relu,
+	const bool apply_bce,
 	const bool apply_light_opti,
-	const Eigen::Vector3f* __restrict__ lights_opti
+	const bool apply_no_albedo,
+	const TrainingXForm* training_xforms
 ) {
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= *rays_counter) { return; }
@@ -1547,33 +1557,82 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	Eigen::Vector3f ray_o = rays_in_unnormalized[i].o;
 	Eigen::Vector3f dir = rays_in_unnormalized[i].d.normalized();
 
-	Eigen::Vector2i resolution = metadata[img].resolution;
+	Eigen::Vector2i resolution = metadata_normal[img].resolution;
 	float xy_pdf = 1.0f;
 	Vector2f xy = nerf_random_image_pos_training(rng, resolution, snap_to_pixel_centers, cdf_x_cond_y, cdf_y, error_map_cdf_res, img, &xy_pdf);
 		
+	const Matrix<float, 3, 4>& xform = training_xforms[img].start;
+	Eigen::Matrix3f Rt = xform.block<3, 3>(0, 0);
 
-	Eigen::Vector3f light;
+	Array3f exposure_scale = (0.6931471805599453f * exposure[img]).exp();
+	Array4f texsamp_albedo = read_rgba(xy, resolution, metadata_albedo[img].pixels, metadata_albedo[img].image_data_type);
+	Array4f texsamp_normal = read_rgba(xy, resolution, metadata_normal[img].pixels, metadata_normal[img].image_data_type);
+
+	Array3f normal_value = linear_to_srgb(exposure_scale * texsamp_normal.head<3>())*2.0f - 1.0f;
+	normal_value[1] *= -1;
+	normal_value[2] *= -1;
+	normal_value /= normal_value.matrix().norm();
+
+	Array3f albedo_value;
+	if (apply_no_albedo){
+		albedo_value = Eigen::Array3f::Constant(1.0f);
+	}
+	else {
+		albedo_value = linear_to_srgb(exposure_scale * texsamp_albedo.head<3>());
+	}
+
+	auto radians = [](float deg) { return deg * M_PI / 180.0f; };
+	Eigen::Vector3f tilt = {radians(0.0f),radians(120.0f),radians(240.0f)};
+	Eigen::Vector3f slant = {radians(54.74f), radians(54.74f), radians(54.74f)};
+
+	Eigen::Vector3f sin_slant = slant.array().sin();
+	Eigen::Vector3f cos_slant = slant.array().cos();
+	Eigen::Vector3f cos_tilt = tilt.array().cos();
+	Eigen::Vector3f sin_tilt = tilt.array().sin();
+
+	Eigen::Matrix3f light_directions;
+	light_directions.row(0) = -sin_slant.cwiseProduct(cos_tilt);
+	light_directions.row(1) = -sin_slant.cwiseProduct(sin_tilt);
+	light_directions.row(2) = -cos_slant;
+
+	// Initialize random number generator
+    curandState state;
+    curand_init(clock64(), i, 0, &state);
+    
+    // Generate random integer between 0 and 2
+    int random_light = curand(&state) % 3;
+
 	if (apply_light_opti){
-		uint32_t id_image = img/3;
-		uint32_t id = img % 3;
-		int posX = int(xy.x() * resolution.x() - 0.25f);
-		int posY = int(xy.y() * resolution.y() - 0.25f);
-		int finalID = id_image*resolution.x()*resolution.y()*3+3*(posY*resolution.x()+posX)+id;
 
-		light = lights_opti[finalID];
-		/*
-		if (i == 0){
-			printf("x : %d || y : %d\n",posY,posX);
-			printf("img: %d || id_image : %d || id_light : %d || x : %d || y : %d || resX : %d || resY : %d ||finalID : %d\n", img,id_image,id,posY,posX,resolution.y(),resolution.x(),finalID);
-			printf("light : %f || %f || %f\n",light.x(),light.y(),light.z());
-		}
-		*/
+		Eigen::Vector3f normalGT = normal_value.matrix();
+		Eigen::Vector3f k;
+		k << -normalGT[1], normalGT[0], 0;
+		k /= k.norm();
 
+		float cos_theta = normalGT[2];
+		float sin_theta = std::sqrt(1 - cos_theta * cos_theta);
+
+		Eigen::Matrix3f K;
+		K << 0, -k[2], k[1],
+			k[2], 0, -k[0],
+			-k[1], k[0], 0;
+
+		Eigen::Matrix3f KK = k * k.transpose();
+		Eigen::Matrix3f R = cos_theta * Eigen::Matrix3f::Identity() + sin_theta * K + (1 - cos_theta) * KK;
+		light_directions = -R * light_directions;
+	}
+	Eigen::Vector3f light_cam = light_directions.col(random_light);
+	Eigen::Vector3f light = Rt * light_cam;
+
+	float shading_target;
+	if (apply_relu){ // Apply ReLU to shading in the 2.5 target shading
+		shading_target = activation_function(normal_value.matrix().dot(light_cam), ENerfActivation::ReLU);
 	}
 	else{
-		light = lights[img];
+		shading_target = normal_value.matrix().dot(light_cam);
 	}
-	
+	 
+	Array3f rgbtarget = albedo_value * shading_target;
 
 	ray_o -= first_frame_offset;
 	if (rotation != nullptr && transition != nullptr) {
@@ -1594,7 +1653,14 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		}
 
 		const tcnn::vector_t<tcnn::network_precision_t, 16> local_network_output = *(tcnn::vector_t<tcnn::network_precision_t, 16>*)network_output;
-		const Array3f albedo = network_to_rgb(local_network_output, rgb_activation);
+		Array3f albedo;
+		if (apply_no_albedo){
+			albedo = Array3f(1.0f,1.0f,1.0f);
+		}
+		else {
+			albedo = network_to_rgb(local_network_output, rgb_activation);
+		}
+		 
 		const Vector3f pos = unwarp_position(coords_in.ptr->pos.p, aabb);
 		float dt = unwarp_dt(coords_in.ptr->dt);
 		float cur_depth = (pos - ray_o).norm();
@@ -1635,8 +1701,14 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 		const float weight = alpha * T;
 		Vector3f normal = pos_gradient.matrix();
-		float shading = activation_function(normal.dot(light), ENerfActivation::ReLU);
-		//float shading = normal.dot(light);
+
+		float shading;
+		if (apply_relu){ // Apply ReLU to shading
+ 			shading = activation_function(normal.dot(light), ENerfActivation::ReLU);
+		}
+		else {
+			shading = normal.dot(light);
+		}
 		rgb_ray += weight * albedo * shading ; // modification TODO
 		hitpoint += weight * pos;
 		depth_ray += weight * cur_depth;
@@ -1665,12 +1737,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		background_color = envmap_value.head<3>() + background_color * (1.0f - envmap_value.w());
 	}
 
-	Array3f exposure_scale = (0.6931471805599453f * exposure[img]).exp();
-	Array4f texsamp = read_rgba(xy, resolution, metadata[img].pixels, metadata[img].image_data_type);
-
-	Array3f rgbtarget = linear_to_srgb(exposure_scale * texsamp.head<3>());
-	//printf("r: %f || g: %f || b: %f ||a: %f\n",rgbtarget(0),rgbtarget(1),rgbtarget(2),(float)texsamp.w());
-
+	
 	// Step again, this time computing loss
 	network_output -= padded_output_width * compacted_numsteps; // rewind the pointer
 	coords_in -= compacted_numsteps;
@@ -1690,19 +1757,24 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 
 	
-	
-	//loss_type = ELossType::L1 ;
+	float mask_certainty = (float) (texsamp_albedo.w() > 0.99); // 1 should be with color
+
+	loss_type = ELossType::L1 ; // Define a default L1 loss
+	if (apply_L2){ // Change to a L2 loss
+		loss_type = ELossType::L2;
+	}
+
 	LossAndGradient lg = loss_and_gradient(rgbtarget, rgb_ray, loss_type); // modification
+	lg.loss *= mask_certainty;
+	lg.gradient *= mask_certainty;
 
 	lg.loss /= img_pdf * xy_pdf;
 
 
-
-	float mask_gt =(float) (texsamp.w() > 0.99); // 1 should be with color
+	float mask_gt =(float) (texsamp_normal.w() > 0.99); // 1 should be with color
+	
 	float gradient_weight_sum;
 
-	// with softmax?
-	// mask loss = - (mask_gt * log(sigmoid(weight_sum)) ...
 	if (weight_sum >= 1.0 - 1e-4){
 		weight_sum = 1.0 - 1e-4;
 		gradient_weight_sum = 0.0f;
@@ -1713,7 +1785,13 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	}
 	else{
 		float sigmoid_weight_sum = 1.0f / ( 1.0f + exp(-weight_sum));
-		gradient_weight_sum = (sigmoid_weight_sum - mask_gt) * weight_sum * mask_loss_weight;
+
+		if (apply_bce){ // Classic BCE loss
+			gradient_weight_sum = ((1 - mask_gt)/(1-weight_sum) - mask_gt/weight_sum) * mask_loss_weight;
+		}
+		else { // Sigmoid BCE loss
+			gradient_weight_sum = (sigmoid_weight_sum - mask_gt) * mask_loss_weight;
+		}
 	}
 	
 	// Note: dividing the gradient by the PDF would cause unbiased loss estimates.
@@ -1727,9 +1805,14 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		loss_output[i] = mean_loss / (float)n_rays;
 	}
 
-	if (mask_loss_output) { // mask loss, binary cross entropy
+	if (mask_loss_output) { 
 		float sigmoid_weight_sum = 1.0f / ( 1.0f + exp(-weight_sum));
-		mask_loss_output[i] = - (mask_gt * log(sigmoid_weight_sum) + (1 - mask_gt) * log(1 - sigmoid_weight_sum));
+		if (apply_bce){  // Classic BCE loss
+			mask_loss_output[i] = - (mask_gt * log(weight_sum) + (1 - mask_gt) * log(1 - weight_sum));
+		}
+		else { // Sigmoid BCE loss
+			mask_loss_output[i] = - (mask_gt * log(sigmoid_weight_sum) + (1 - mask_gt) * log(1 - sigmoid_weight_sum));
+		}
 	}
 
 	if (ek_loss_output) {
@@ -1789,7 +1872,14 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 		float dt = unwarp_dt(coord_in->dt);
 		const tcnn::vector_t<tcnn::network_precision_t, 16> local_network_output = *(tcnn::vector_t<tcnn::network_precision_t, 16>*)network_output;
-		const Array3f albedo = network_to_rgb(local_network_output, rgb_activation);
+
+		Array3f albedo;
+		if (apply_no_albedo){
+			albedo = Array3f(1.0f,1.0f,1.0f);
+		}
+		else {
+			albedo = network_to_rgb(local_network_output, rgb_activation);
+		}
 		
 		float inv_s = __expf((tcnn::network_precision_t)10 * local_network_output[7]);
 
@@ -1818,8 +1908,14 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 		const float weight = alpha * T;
 		Vector3f normal = pos_gradient.matrix();
-		float shading = activation_function(normal.dot(light), ENerfActivation::ReLU);
-		//float shading = normal.dot(light);
+
+		float shading;
+		if (apply_relu){
+ 			shading = activation_function(normal.dot(light), ENerfActivation::ReLU);
+		}
+		else {
+			shading = normal.dot(light);
+		}
 		rgb_ray2 += weight * albedo * shading; // modification
 		depth_ray2 += weight * depth;
 		weight_sum2 += weight;
@@ -1833,19 +1929,21 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		Matrix3f light_albedo = light * albedo_transpose;
 		dloss_dn = weight * light_albedo * lg.gradient.matrix(); // modification : pas sur du tout ! produit matriciel ?
 		
-		if (shading <= 0.f){
-			dloss_dn = Vector3f::Zero();
-		}
-		
+
 		const Array3f dloss_by_drgb = weight * shading * lg.gradient;
 		
 
 		tcnn::vector_t<tcnn::network_precision_t, 16> local_dL_doutput;
 
+		float opti_rgb = 1.0;
+		if (apply_no_albedo){
+			opti_rgb = 0.0f;
+		}
+
 		// chain rule to go from dloss/drgb to dloss/dmlp_output
-		local_dL_doutput[0] = loss_scale * (dloss_by_drgb.x() * network_to_rgb_derivative(local_network_output[0], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[0])); // Penalize way too large color values
-		local_dL_doutput[1] = loss_scale * (dloss_by_drgb.y() * network_to_rgb_derivative(local_network_output[1], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[1]));
-		local_dL_doutput[2] = loss_scale * (dloss_by_drgb.z() * network_to_rgb_derivative(local_network_output[2], rgb_activation) + fmaxf(0.0f, output_l2_reg * (float)local_network_output[2]));
+		local_dL_doutput[0] = opti_rgb  * loss_scale * (dloss_by_drgb.x() * network_to_rgb_derivative(local_network_output[0], rgb_activation));//+ fmaxf(0.0f, output_l2_reg * (float)local_network_output[0])); // Penalize way too large color values
+		local_dL_doutput[1] = opti_rgb  * loss_scale * (dloss_by_drgb.y() * network_to_rgb_derivative(local_network_output[1], rgb_activation)) ;//+ fmaxf(0.0f, output_l2_reg * (float)local_network_output[1]));
+		local_dL_doutput[2] = opti_rgb  * loss_scale * (dloss_by_drgb.z() * network_to_rgb_derivative(local_network_output[2], rgb_activation)) ;//+ fmaxf(0.0f, output_l2_reg * (float)local_network_output[2]));
 
 		const float sum_weight_suffix = weight_sum - weight_sum2;
 
@@ -1930,11 +2028,12 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		bool inside_ek_aabb = ek_aabb.contains(pos);
 	
 		// ek_loss
+
 		local_dL_doutput[4] = (tcnn::network_precision_t)(ek_loss_weight * 2 * original_loss_scale * pos_gradient_norm_inv * pos_gradient[0]);
 		local_dL_doutput[5] = (tcnn::network_precision_t)(ek_loss_weight * 2 * original_loss_scale * pos_gradient_norm_inv * pos_gradient[1]);
 		local_dL_doutput[6] = (tcnn::network_precision_t)(ek_loss_weight * 2 * original_loss_scale * pos_gradient_norm_inv * pos_gradient[2]);
 		
-		local_dL_doutput[7] = (tcnn::network_precision_t)(loss_scale * dloss_dvariance );
+		local_dL_doutput[7] = (tcnn::network_precision_t)(loss_scale*dloss_dvariance);
 
 		#if NORMAL_VECTORS_NORMALIZED
 			float gradient_norm_3 = gradient_norm * gradient_norm * gradient_norm;
@@ -1966,6 +2065,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 			local_dL_doutput[8] = (tcnn::network_precision_t)(loss_scale * (dloss_dn.x() + dloss_dnormal_norm * dir[0]));
 			local_dL_doutput[9] = (tcnn::network_precision_t)(loss_scale * (dloss_dn.y() + dloss_dnormal_norm * dir[1]));
 			local_dL_doutput[10] = (tcnn::network_precision_t)(loss_scale * (dloss_dn.z() + dloss_dnormal_norm * dir[2]));
+
 		#endif
 
 		*(tcnn::vector_t<tcnn::network_precision_t, 16>*)dloss_doutput = local_dL_doutput;
@@ -2619,7 +2719,7 @@ void Testbed::Nerf::Training::reset_extra_dims(default_rng_t &rng) {
 	ArrayXf zero(n_extra_dims);
 	extra_dims_opt.resize(dataset.n_images, AdamOptimizer<ArrayXf>(1e-4f, zero));
 	for (uint32_t i = 0; i < dataset.n_images; ++i) {
-		Eigen::Vector3f light_dir = warp_direction(dataset.metadata[i].light_dir.normalized());
+		Eigen::Vector3f light_dir = warp_direction(dataset.metadata_normal[i].light_dir.normalized());
 		extra_dims_opt[i].reset_state(Eigen::VectorXf(n_extra_dims));
 		Eigen::ArrayXf &optimzer_value = extra_dims_opt[i].variable();
 		for (uint32_t j = 0; j < n_extra_dims; ++j) {
@@ -2802,14 +2902,15 @@ void Testbed::Nerf::Training::set_camera_intrinsics(int frame_idx, float fx, flo
 	}
 	if (fx <= 0.f) fx = fy;
 	if (fy <= 0.f) fy = fx;
-	auto &m = dataset.metadata[frame_idx];
+	auto &m = dataset.metadata_normal[frame_idx];
 	if (cx < 0.f) cx = -cx; else cx = cx / m.resolution.x();
 	if (cy < 0.f) cy = -cy; else cy = cy / m.resolution.y();
 	ECameraDistortionMode mode = (k1 || k2 || p1 || p2) ? ECameraDistortionMode::Iterative : ECameraDistortionMode::None;
 	m.camera_distortion = { mode, k1, k2, p1, p2 };
 	m.principal_point = { cx, cy };
 	m.focal_length = { fx, fy };
-	update_metadata(frame_idx, frame_idx + 1);
+	update_metadata_normal(frame_idx, frame_idx + 1);
+	update_metadata_albedo(frame_idx, frame_idx + 1);
 }
 
 void Testbed::Nerf::Training::set_camera_extrinsics(int frame_idx, const Eigen::Matrix<float, 3, 4> &camera_to_world) {
@@ -2878,7 +2979,7 @@ Eigen::Matrix<float, 3, 4> Testbed::Nerf::Training::get_camera_extrinsics(int fr
 	return dataset.ngp_matrix_to_nerf(transforms[frame_idx].start);
 }
 
-void Testbed::Nerf::Training::update_metadata(int first, int last) {
+void Testbed::Nerf::Training::update_metadata_normal(int first, int last) {
 	if (last < 0) {
 		last = dataset.n_images;
 	}
@@ -2891,28 +2992,27 @@ void Testbed::Nerf::Training::update_metadata(int first, int last) {
 	if (n <= 0) {
 		return;
 	}
-	metadata_gpu.enlarge(last);
-	CUDA_CHECK_THROW(cudaMemcpy(metadata_gpu.data() + first, dataset.metadata.data() + first, n * sizeof(TrainingImageMetadata), cudaMemcpyHostToDevice));
+	metadata_normal_gpu.enlarge(last);
+	CUDA_CHECK_THROW(cudaMemcpy(metadata_normal_gpu.data() + first, dataset.metadata_normal.data() + first, n * sizeof(TrainingImageMetadata), cudaMemcpyHostToDevice));
 }
 
+void Testbed::Nerf::Training::update_metadata_albedo(int first, int last) {
+	if (last < 0) {
+		last = dataset.n_images;
+	}
 
+	if (last > dataset.n_images) {
+		last = dataset.n_images;
+	}
 
-void Testbed::Nerf::Training::copy_lights_to_gpu() {
-
-	cudaMalloc((void**)&lights_gpu, dataset.n_images * sizeof(Eigen::Vector3f));
-	CUDA_CHECK_THROW(cudaMemcpy(lights_gpu, dataset.lights, dataset.n_images * sizeof(Eigen::Vector3f), cudaMemcpyHostToDevice));
-	
-
+	int n = last - first;
+	if (n <= 0) {
+		return;
+	}
+	metadata_albedo_gpu.enlarge(last);
+	CUDA_CHECK_THROW(cudaMemcpy(metadata_albedo_gpu.data() + first, dataset.metadata_albedo.data() + first, n * sizeof(TrainingImageMetadata), cudaMemcpyHostToDevice));
 }
 
-void Testbed::Nerf::Training::copy_lights_opti_to_gpu() {
-
-	int n_images_distinct = dataset.n_images / 3;
-	cudaMalloc((void**)&lights_opti_gpu, n_images_distinct * dataset.width * dataset.height * 3 * sizeof(Eigen::Vector3f));
-	CUDA_CHECK_THROW(cudaMemcpy(lights_opti_gpu, dataset.lights_opti, n_images_distinct * dataset.width * dataset.height * 3 * sizeof(Eigen::Vector3f), cudaMemcpyHostToDevice));
-	
-
-}
 
 void Testbed::Nerf::Training::update_transforms(int first, int last) {
 	if (last < 0) {
@@ -3006,9 +3106,9 @@ void Testbed::load_nerf() {
 
 	m_nerf.training.n_images_for_training = (int)m_nerf.training.dataset.n_images;
 
-	m_nerf.training.update_metadata();
-	m_nerf.training.copy_lights_to_gpu();
-	m_nerf.training.copy_lights_opti_to_gpu();
+	m_nerf.training.update_metadata_normal();
+	m_nerf.training.update_metadata_albedo();
+
 
 	m_nerf.training.cam_pos_gradient.resize(m_nerf.training.dataset.n_images, Vector3f::Zero());
 	m_nerf.training.cam_pos_gradient_gpu.resize_and_copy_from_host(m_nerf.training.cam_pos_gradient);
@@ -3056,9 +3156,14 @@ void Testbed::load_nerf() {
 
 	m_nerf.training.update_transforms();
 
-	if (!m_nerf.training.dataset.metadata.empty()) {
-		m_nerf.render_distortion = m_nerf.training.dataset.metadata[0].camera_distortion;
-		m_screen_center = Eigen::Vector2f::Constant(1.f) - m_nerf.training.dataset.metadata[0].principal_point;
+	if (!m_nerf.training.dataset.metadata_normal.empty()) {
+		m_nerf.render_distortion = m_nerf.training.dataset.metadata_normal[0].camera_distortion;
+		m_screen_center = Eigen::Vector2f::Constant(1.f) - m_nerf.training.dataset.metadata_normal[0].principal_point;
+	}
+
+	if (!m_nerf.training.dataset.metadata_albedo.empty()) {
+		m_nerf.render_distortion = m_nerf.training.dataset.metadata_albedo[0].camera_distortion;
+		m_screen_center = Eigen::Vector2f::Constant(1.f) - m_nerf.training.dataset.metadata_albedo[0].principal_point;
 	}
 
 	if (!is_pot(m_nerf.training.dataset.aabb_scale)) {
@@ -3119,9 +3224,9 @@ void Testbed::load_nerf(uint32_t frame_time_idx, bool is_downsample) {
 
 	m_nerf.training.n_images_for_training = (int)m_nerf.training.dataset.n_images;
 
-	m_nerf.training.update_metadata();
-	m_nerf.training.copy_lights_to_gpu();
-	m_nerf.training.copy_lights_opti_to_gpu();
+	m_nerf.training.update_metadata_normal();
+	m_nerf.training.update_metadata_albedo();
+
 
 	m_nerf.training.cam_pos_gradient.resize(m_nerf.training.dataset.n_images, Vector3f::Zero());
 	m_nerf.training.cam_pos_gradient_gpu.resize_and_copy_from_host(m_nerf.training.cam_pos_gradient);
@@ -3169,9 +3274,14 @@ void Testbed::load_nerf(uint32_t frame_time_idx, bool is_downsample) {
 
 	m_nerf.training.update_transforms();
 
-	if (!m_nerf.training.dataset.metadata.empty()) {
-		m_nerf.render_distortion = m_nerf.training.dataset.metadata[0].camera_distortion;
-		m_screen_center = Eigen::Vector2f::Constant(1.f) - m_nerf.training.dataset.metadata[0].principal_point;
+	if (!m_nerf.training.dataset.metadata_normal.empty()) {
+		m_nerf.render_distortion = m_nerf.training.dataset.metadata_normal[0].camera_distortion;
+		m_screen_center = Eigen::Vector2f::Constant(1.f) - m_nerf.training.dataset.metadata_normal[0].principal_point;
+	}
+
+	if (!m_nerf.training.dataset.metadata_albedo.empty()) {
+		m_nerf.render_distortion = m_nerf.training.dataset.metadata_albedo[0].camera_distortion;
+		m_screen_center = Eigen::Vector2f::Constant(1.f) - m_nerf.training.dataset.metadata_albedo[0].principal_point;
 	}
 
 	if (!is_pot(m_nerf.training.dataset.aabb_scale)) {
@@ -3322,18 +3432,7 @@ void Testbed::update_density_grid_nerf(float decay, uint32_t n_uniform_density_g
 		if (m_training_step == 0) {
 			m_nerf.density_grid_ema_step = 0;
 		}
-		// Only cull away empty regions where no camera is looking when the cameras are actually meaningful.
-		// if (!m_nerf.training.dataset.has_rays) {
-		if (false) { // with bugs
-			linear_kernel(mark_untrained_density_grid, 0, stream, n_elements, m_nerf.density_grid.data(),
-				m_nerf.training.n_images_for_training,
-				m_nerf.training.metadata_gpu.data(),
-				m_nerf.training.transforms_gpu.data(),
-				m_training_step == 0
-			);
-		} else {
-			CUDA_CHECK_THROW(cudaMemsetAsync(m_nerf.density_grid.data(), 0, sizeof(float)*n_elements, stream));
-		}
+		CUDA_CHECK_THROW(cudaMemsetAsync(m_nerf.density_grid.data(), 0, sizeof(float)*n_elements, stream));
 	}
 
 	uint32_t n_steps = 1;
@@ -3481,9 +3580,9 @@ void Testbed::train_nerf(uint32_t target_batch_size, bool get_loss_scalar, cudaS
 		CUDA_CHECK_THROW(cudaMemsetAsync(m_nerf.training.extra_dims_gradient_gpu.data(), 0, m_nerf.training.extra_dims_gradient_gpu.get_bytes(), stream));
 	}
 
-	if (m_nerf.training.n_steps_since_error_map_update == 0 && !m_nerf.training.dataset.metadata.empty()) {
+	if (m_nerf.training.n_steps_since_error_map_update == 0 && !m_nerf.training.dataset.metadata_normal.empty()) {
 		uint32_t n_samples_per_image = (m_nerf.training.n_steps_between_error_map_updates * m_nerf.training.counters_rgb.rays_per_batch) / m_nerf.training.dataset.n_images;
-		Eigen::Vector2i res = m_nerf.training.dataset.metadata[0].resolution;
+		Eigen::Vector2i res = m_nerf.training.dataset.metadata_normal[0].resolution;
 		m_nerf.training.error_map.resolution = Vector2i::Constant((int)(std::sqrt(std::sqrt((float)n_samples_per_image)) * 3.5f)).cwiseMin(res);
 		m_nerf.training.error_map.data.resize(m_nerf.training.error_map.resolution.prod() * m_nerf.training.dataset.n_images);
 		CUDA_CHECK_THROW(cudaMemsetAsync(m_nerf.training.error_map.data.data(), 0, m_nerf.training.error_map.data.get_bytes(), stream));
@@ -3689,7 +3788,8 @@ void Testbed::train_nerf(uint32_t target_batch_size, bool get_loss_scalar, cudaS
 			focal_length_gradient += m_nerf.training.cam_focal_length_offset.variable() * l2_reg;
 			m_nerf.training.cam_focal_length_offset.set_learning_rate(std::max(1e-3f * std::pow(0.33f, (float)(m_nerf.training.cam_focal_length_offset.step() / 128)),m_optimizer->learning_rate() / 1000.0f));
 			m_nerf.training.cam_focal_length_offset.step(focal_length_gradient);
-			m_nerf.training.update_metadata();
+			m_nerf.training.update_metadata_normal();
+			m_nerf.training.update_metadata_albedo();
 		}
 
 		if (m_nerf.training.optimize_exposure) {
@@ -3820,7 +3920,7 @@ void Testbed::train_nerf_step(uint32_t target_batch_size, uint32_t n_rays_per_ba
 		numsteps,
 		PitchedPtr<NerfCoordinate>((NerfCoordinate*)coords, 1, 0, extra_stride),
 		m_nerf.training.n_images_for_training,
-		m_nerf.training.metadata_gpu.data(),
+		m_nerf.training.metadata_normal_gpu.data(),
 		m_nerf.training.transforms_gpu.data(),
 		m_nerf.density_grid_bitfield.data(),
 		m_max_level_rand_training,
@@ -3872,7 +3972,8 @@ void Testbed::train_nerf_step(uint32_t target_batch_size, uint32_t n_rays_per_ba
 		m_nerf.training.random_bg_color,
 		m_nerf.training.linear_colors,
 		m_nerf.training.n_images_for_training,
-		m_nerf.training.metadata_gpu.data(),
+		m_nerf.training.metadata_normal_gpu.data(),
+		m_nerf.training.metadata_albedo_gpu.data(),
 		mlp_out,
 		compacted_counter,
 		ray_indices,
@@ -3913,10 +4014,12 @@ void Testbed::train_nerf_step(uint32_t target_batch_size, uint32_t n_rays_per_ba
 		m_mask_loss_weight,
 		m_ek_loss_weight,
 		m_nerf_network->cos_anneal_ratio(),
-		m_apply_L1,
-		m_nerf.training.lights_gpu,
+		m_apply_L2,
+		m_apply_relu,
+		m_apply_bce,
 		m_light_opti,
-		m_nerf.training.lights_opti_gpu
+		m_no_albedo,
+		m_nerf.training.transforms_gpu.data()
 	);
 
 
@@ -3977,7 +4080,7 @@ void Testbed::train_nerf_step(uint32_t target_batch_size, uint32_t n_rays_per_ba
 			m_nerf.training.optimize_extrinsics ? m_nerf.training.cam_pos_gradient_gpu.data() : nullptr,
 			m_nerf.training.optimize_extrinsics ? m_nerf.training.cam_rot_gradient_gpu.data() : nullptr,
 			m_nerf.training.n_images_for_training,
-			m_nerf.training.metadata_gpu.data(),
+			m_nerf.training.metadata_normal_gpu.data(),
 			ray_indices,
 			rays_unnormalized,
 			numsteps,
@@ -4177,6 +4280,8 @@ int Testbed::marching_cubes(Vector3i res3d, const BoundingBox& aabb, float thres
 	res3d.x() = next_multiple((unsigned int)res3d.x(), 16u);
 	res3d.y() = next_multiple((unsigned int)res3d.y(), 16u);
 	res3d.z() = next_multiple((unsigned int)res3d.z(), 16u);
+
+	tlog::info() << res3d.x() << res3d.y() << res3d.z() ;
 
 	if (thresh == std::numeric_limits<float>::max()) {
 		thresh = m_mesh.thresh;

@@ -317,8 +317,11 @@ public:
 	void set_max_iter(uint32_t max_it);
 	void set_mask_weight(float weight);
 	void apply_light_opti();
+	void apply_no_albedo();
 	void apply_normalization();
-	void apply_L1();
+	void apply_L2();
+	void apply_bce();
+	void apply_relu();
     uint32_t get_max_iter();
 	void set_view_dir(const Eigen::Vector3f& dir);
 	void set_camera_to_training_view(int trainview);
@@ -494,7 +497,10 @@ public:
 	uint32_t m_IoR = 1.0;
 	bool m_apply_normalization = false;
 	bool m_light_opti = false;
-	bool m_apply_L1 = false;
+	bool m_no_albedo = false;
+	bool m_apply_L2 = false;
+	bool m_apply_bce = false;
+	bool m_apply_relu = false;
 	float m_prev_scale = 1.0;
 	float m_dof = 0.0f;
 	Eigen::Vector2f m_relative_focal_length = Eigen::Vector2f::Ones();
@@ -564,9 +570,8 @@ public:
 				bool is_cdf_valid = false;
 			} error_map;
 
-			tcnn::GPUMemory<TrainingImageMetadata> metadata_gpu;
-			Eigen::Vector3f* lights_gpu;
-			Eigen::Vector3f* lights_opti_gpu;
+			tcnn::GPUMemory<TrainingImageMetadata> metadata_normal_gpu;
+			tcnn::GPUMemory<TrainingImageMetadata> metadata_albedo_gpu;
 
 			std::vector<TrainingXForm> transforms;
 			tcnn::GPUMemory<TrainingXForm> transforms_gpu;
@@ -657,9 +662,8 @@ public:
 			void set_camera_intrinsics(int frame_idx, float fx, float fy = 0.0f, float cx = -0.5f, float cy = -0.5f, float k1 = 0.0f, float k2 = 0.0f, float p1 = 0.0f, float p2 = 0.0f);
 			void set_camera_extrinsics(int frame_idx, const Eigen::Matrix<float, 3, 4>& camera_to_world);
 			Eigen::Matrix<float, 3, 4> get_camera_extrinsics(int frame_idx);
-			void update_metadata(int first = 0, int last = -1);
-			void copy_lights_to_gpu();
-			void copy_lights_opti_to_gpu();
+			void update_metadata_normal(int first = 0, int last = -1);
+			void update_metadata_albedo(int first = 0, int last = -1);
 			void update_transforms(int first = 0, int last = -1);
 
 #ifdef NGP_PYTHON
