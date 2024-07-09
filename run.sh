@@ -2,7 +2,7 @@
 
 # Check if folder path is provided as argument
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <folder_path> [--no-albedo | --l2]"
+    echo "Usage: $0 <folder_path> [--no-albedo | --ltwo]"
     exit 1
 fi
 
@@ -21,7 +21,7 @@ if [ $# -ge 2 ]; then
             ;;
         *)
             echo "Invalid option: $2"
-            echo "Usage: $0 <folder_path> [--no-albedo | --l2]"
+            echo "Usage: $0 <folder_path> [--no-albedo | --ltwo]"
             exit 1
             ;;
     esac
