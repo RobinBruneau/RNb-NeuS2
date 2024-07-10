@@ -62,8 +62,8 @@ class Dataset:
             #        [0,0,1,0],
             #        [0,0,0,1]])
             self.intrinsics_all.append(intrinsics)
-            root_determinant = np.linalg.det(pose[:3,:3])**(1/3)
-            pose = pose / root_determinant
+            # root_determinant = np.linalg.det(pose[:3,:3])**(1/3)
+            # pose = pose / root_determinant
             self.pose_all.append(pose)
 
         self.intrinsics_all = np.array(self.intrinsics_all)  # [n_images, 4, 4]
@@ -73,7 +73,7 @@ class Dataset:
 
 
 
-def NeuS_to_NeuS2(inputFolder,outputFolder):
+def NeuS_to_NeuS2(inputFolder, outputFolder, mask_certainty_name):
     conf = {
         "data_dir": inputFolder,
         "render_cameras_name": "cameras.npz",
@@ -83,8 +83,8 @@ def NeuS_to_NeuS2(inputFolder,outputFolder):
     base_albedo_dir = join(inputFolder, "albedo")
     albedo_folder_exist = os.path.exists(base_albedo_dir)
     base_normal_dir = join(inputFolder, "normal")
-    base_msk_dir = join(inputFolder, "mask/")
-    base_msk_certainty_dir = join(inputFolder, "mask_certainty")
+    base_msk_dir = join(inputFolder, "mask")
+    base_msk_certainty_dir = join(inputFolder, mask_certainty_name)
     msk_certainty_folder_exist = os.path.exists(base_msk_certainty_dir)
     if albedo_folder_exist :
         all_images_albedo = sorted(os.listdir(base_albedo_dir))
@@ -241,23 +241,19 @@ def cameras_npz_to_json(folder="",camera_file=""):
         raise("You need to add the folder : --folder name")
 
 
-def preprocess(folder):
-
-    mainFolder = folder+"/NeuS2_no_light/"
-
-    if os.path.exists(mainFolder):
-        shutil.rmtree(mainFolder)
-    os.makedirs(mainFolder,exist_ok=True)
-
-    NeuS_to_NeuS2(folder,mainFolder)
-
-    print("-DONE-")
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--folder', type=str, required=True)  # Parse the argument
+    parser.add_argument('--exp_name', type=str, required=False, default="RNb-NeuS2")
+    parser.add_argument('--mask_certainty_name', type=str, required=False, default="mask_normal_uncertainty")
     args = parser.parse_args()
 
     folder = args.folder
-    preprocess(folder)
+    exp_name = args.exp_name
+    mask_certainty_name = args.mask_certainty_name
+    mainFolder = os.path.join(folder, exp_name)
+        
+    os.makedirs(mainFolder, exist_ok=True)
+    NeuS_to_NeuS2(folder, mainFolder, mask_certainty_name)
+
+    print("-DONE-")
