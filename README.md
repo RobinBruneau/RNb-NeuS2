@@ -1,4 +1,3 @@
-```markdown
 # RNb-NeuS2
 
 Welcome to the official CUDA implementation of **RNb-NeuS: Reflectance and Normal-based Multi-View 3D Reconstruction**.
