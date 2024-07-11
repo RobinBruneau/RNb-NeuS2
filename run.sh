@@ -37,7 +37,7 @@ if [ "$scale_albedo" = true ]; then
     ./run.sh "$case" --no-albedo
 
     # Launch with scaled albedos
-    python scripts/scale_albedos.py --folder "$case/"
+    python scripts/scale_albedos.py --folder "$case"
     path=$(dirname "$case")
     folder=$(basename "$case")
     folder="${folder}-albedoscaled"

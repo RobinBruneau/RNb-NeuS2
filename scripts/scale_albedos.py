@@ -52,6 +52,22 @@ def get_ray(pixel, K, R_c2w, center):
     ray = np.concatenate((center.T, pixel_w2c.T), axis=0)
     return ray
 
+def load_K_Rt_from_P(P):
+    out = cv2.decomposeProjectionMatrix(P)
+    K = out[0]
+    R = out[1]
+    t = out[2]
+
+    K = K / K[2, 2]
+    intrinsics = np.eye(4)
+    intrinsics[:3, :3] = K
+
+    pose = np.eye(4, dtype=np.float32)
+    pose[:3, :3] = R.transpose()
+    pose[:3, 3] = (t[:3] / t[3])[:, 0]
+
+    return intrinsics, pose
+
 
 if __name__ == "__main__":
 
@@ -65,8 +81,11 @@ if __name__ == "__main__":
     albedo_path = os.path.join(folder, "albedos")
     normal_path = os.path.join(folder, "normals")
     transform_path = os.path.join(folder, "transform.json")
+    cameras_npz_path = os.path.join(folder, "../cameras.npz")
 
     # Outputs
+    if folder.endswith("/"):
+        folder = folder[:-1]
     exp_name = os.path.basename(folder)
     output_path = os.path.join(folder, "..", exp_name + "-albedoscaled")
     if os.path.exists(output_path):
@@ -92,13 +111,12 @@ if __name__ == "__main__":
     n_views, h, w, _ = albedos.shape
 
     # Load camera parameters
-    data_cam = json.load(open(transform_path, "r"))
+    data_cam = np.load(cameras_npz_path)
     K_array = []
     R_c2w_array = []
     centers_array = []
     for k in range(n_views):
-        K = np.array(data_cam["frames"][k]["intrinsic_matrix"])
-        RT_c2w = np.array(data_cam["frames"][k]["transform_matrix"])
+        K, RT_c2w = load_K_Rt_from_P(data_cam[f"world_mat_{k}"][:3, :])
         R_c2w_array.append(RT_c2w[:3, :3])
         centers_array.append(RT_c2w[:3, [3]])
         K_array.append(K[:3, :3])
