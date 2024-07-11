@@ -98,7 +98,7 @@ python script/preprocess.py --folder ./data/<FOLDER>/ --exp_name <EXP_NAME>
 ./run.sh ./data/<FOLDER>/<EXP_NAME>
 ```
 
-Results will be saved in `./data/<FOLDER>/<EXP_NAME>/`. Modify `run.sh` with the following options:
+Results will be saved in `./data/<FOLDER>/<EXP_NAME>/`. Modify the `./build/testbed` command in the `run.sh` with the following options:
 
 ```plaintext
 --scene FOLDER          # Path to your data
@@ -113,10 +113,10 @@ Results will be saved in `./data/<FOLDER>/<EXP_NAME>/`. Modify `run.sh` with the
 
 ### Run Optimization with Scaled Reflectance Maps
 
-For reflectance maps with varying scale factors, here's a script that generates a mesh without reflectance maps first, then uses this mesh to scale the reflectance maps. Finally, it generates a mesh using the scaled reflectance maps. 
+For reflectance maps with varying scale factors, use the `--scale-albedo` flag that generates a mesh without reflectance maps first, then uses this mesh to scale the reflectance maps (pyoctree and scipy are needed in a python environment). Finally, it generates a mesh using the scaled reflectance maps. 
 
 ```bash
-./run_scaled_albedo.sh ./data/<FOLDER>/<EXP_NAME>
+./run.sh ./data/<FOLDER>/<EXP_NAME> --scale-albedo
 ```
 Results will be in `./data/<FOLDER>/<EXP_NAME>-albedoscaled/`.
 Note: The provided DiLiGenT-MV dataset already has scaled reflectance maps in the `albedo` folder.
