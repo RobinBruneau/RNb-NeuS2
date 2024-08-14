@@ -2,52 +2,67 @@
 
 # Check if folder path is provided as argument
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <folder_path> [--no-albedo | --ltwo | --scale-albedo]"
+    echo "Usage: $0 <folder_path> [--no-albedo | --ltwo | --scale-albedo | --num-iter <num_iter>]"
     exit 1
 fi
 
 # Assign folder path to a variable
 case="$1"
 
-# Initialize flags variable
+# Handle optional arguments
 flags=""
 scale_albedo=false
-if [ $# -ge 2 ]; then
+while [ $# -gt 1 ]; do
     case "$2" in
         --no-albedo)
-            flags+=" --no-albedo"
+            flags="$flags --no-albedo"
             ;;
         --ltwo)
-            flags+=" --ltwo"
+            flags="$flags --ltwo"
             ;;
         --scale-albedo)
             scale_albedo=true
             ;;
+        --num-iter)
+            num_iter="$3"
+            flags="$flags --num-iter $num_iter"
+            shift
+            ;;
         *)
-            echo "Invalid option: $2"
-            echo "Usage: $0 <folder_path> [--no-albedo | --ltwo | --scale-albedo]"
+            echo "Unknown option: $2"
             exit 1
             ;;
     esac
+    shift
+done
+
+# If --num-iter is not provided, set it to 10000
+if [ -z "$num_iter" ]; then
+    num_iter=10000
 fi
 
 # If --scale-albedo is provided, run the albedo scaling steps
 if [ "$scale_albedo" = true ]; then
+    
+    # if scale_albedo is true, then no-albedo flag should not be present
+    flags=$(echo "$flags" | sed 's/--no-albedo//')
+
     # Launch without albedo
-    ./run.sh "$case" --no-albedo
+    ./run.sh "$case" --no-albedo $flags
 
     # Launch with scaled albedos
     python scripts/scale_albedos.py --folder "$case"
     path=$(dirname "$case")
     folder=$(basename "$case")
     folder="${folder}-albedoscaled"
-    ./run.sh "$path/$folder/"
+    ./run.sh "$path/$folder/" $flags
     exit 0
 fi
 
-iterWarmupMask="5000"
-iterWarmupLightGlobal="15000"
-iterLightOptimal="25000"
+iterLightOptimal=${num_iter}
+iterWarmupLightGlobal=$(($iterLightOptimal/5*3))
+iterWarmupMask=$(($iterLightOptimal/5))
+
 resolutionMarchingCube="1024"
 
 # Display the command for debugging
