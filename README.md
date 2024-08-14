@@ -4,8 +4,8 @@ Welcome to the official CUDA implementation of **RNb-NeuS: Reflectance and Norma
 
 ## Authors
 
-[Baptiste Brument](https://bbrument.github.io/),  
 [Robin Bruneau](https://robinbruneau.github.io/),  
+[Baptiste Brument](https://bbrument.github.io/),  
 [Yvain Quéau](https://sites.google.com/view/yvainqueau),  
 [Jean Mélou](https://www.irit.fr/~Jean.Melou/),  
 [François Lauze](https://loutchoa.github.io/),  
@@ -17,7 +17,6 @@ Welcome to the official CUDA implementation of **RNb-NeuS: Reflectance and Norma
 - [Project Page](https://robinbruneau.github.io/publications/rnb_neus.html)
 - [Paper](https://arxiv.org/abs/2312.01215)
 
-<img src="assets/pipeline.png" alt="Pipeline">
 
 ## Table of Contents
 
@@ -97,7 +96,7 @@ python script/preprocess.py --folder ./data/<FOLDER>/ --exp_name <EXP_NAME>
 ./run.sh ./data/<FOLDER>/<EXP_NAME>
 ```
 
-Results will be saved in `./data/<FOLDER>/<EXP_NAME>/`. Modify the `./build/testbed` command in the `run.sh` with the following options:
+Results will be stored in `./data/<FOLDER>/<EXP_NAME>/`. Modify the `./build/testbed` command in the `run.sh` with the following options:
 
 ```plaintext
 --scene FOLDER          # Path to your data
@@ -117,7 +116,8 @@ For reflectance maps with varying scale factors, use the `--scale-albedo` flag t
 ```bash
 ./run.sh ./data/<FOLDER>/<EXP_NAME> --scale-albedo
 ```
-Results will be in `./data/<FOLDER>/<EXP_NAME>-albedoscaled/`.
+Results will be stored in `./data/<FOLDER>/<EXP_NAME>-albedoscaled/`.
+
 Note: The provided DiLiGenT-MV dataset already has scaled reflectance maps in the `albedo` folder.
 
 ## Acknowledgements & Citation
@@ -126,11 +126,10 @@ Note: The provided DiLiGenT-MV dataset already has scaled reflectance maps in th
 
 ```bibtex
 @inproceedings{Brument23,
-    title={RNb-Neus: Reflectance and Normal Based Reconstruction with NeuS},
+    title={RNb-Neus: Reflectance and normal Based reconstruction with NeuS},
     author={Baptiste Brument and Robin Bruneau and Yvain Quéau and Jean Mélou and François Lauze and Jean-Denis Durou and Lilian Calvet},
-    eprint={2312.01215},
-    archivePrefix={arXiv},
-    year={2023}
+    booktitle={IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+    year={2024}
 }
 ```
 
