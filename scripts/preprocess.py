@@ -85,7 +85,7 @@ def NeuS_to_NeuS2(inputFolder, outputFolder, mask_certainty_name):
     base_normal_dir = join(inputFolder, "normal")
     base_msk_dir = join(inputFolder, "mask")
     base_msk_certainty_dir = join(inputFolder, mask_certainty_name)
-    msk_certainty_folder_exist = os.path.exists(base_msk_certainty_dir)
+    
     if albedo_folder_exist :
         all_images_albedo = sorted(os.listdir(base_albedo_dir))
     else :
@@ -93,10 +93,10 @@ def NeuS_to_NeuS2(inputFolder, outputFolder, mask_certainty_name):
     all_images_normal = sorted(os.listdir(base_normal_dir))
     all_masks = sorted(os.listdir(base_msk_dir))
 
-    if msk_certainty_folder_exist :
-        all_masks_certainty = sorted(os.listdir(base_msk_certainty_dir))
-    else :
-        all_masks_certainty = sorted(os.listdir(base_normal_dir))
+    msk_certainty_folder_exist = os.path.exists(base_msk_certainty_dir)
+    if not msk_certainty_folder_exist :
+        base_msk_certainty_dir = base_msk_dir
+    all_masks_certainty = sorted(os.listdir(base_msk_certainty_dir))
 
     def copy_directories(root_src_dir, root_dst_dir):
         for src_dir, dirs, files in os.walk(root_src_dir):

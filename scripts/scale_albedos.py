@@ -77,7 +77,7 @@ if __name__ == "__main__":
 
     # Inputs
     folder = args.folder
-    mesh_path = os.path.join(folder, "mesh_25000_.obj")
+    mesh_path = [os.path.join(folder, f) for f in os.listdir(folder) if f.startswith("mesh_") and f.endswith(".obj")][0]
     albedo_path = os.path.join(folder, "albedos")
     normal_path = os.path.join(folder, "normals")
     transform_path = os.path.join(folder, "transform.json")
