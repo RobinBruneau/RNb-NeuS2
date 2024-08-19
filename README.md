@@ -33,8 +33,8 @@ Follow the [Instant-NGP](https://github.com/NVlabs/instant-ngp#building-instant-
 
 Clone the repository and its submodules:
 ```bash
-git clone https://github.com/RobinBruneau/RNb_NeuS2/
-cd RNb_NeuS2
+git clone https://github.com/RobinBruneau/RNb-NeuS2/
+cd RNb-NeuS2
 ```
 
 Build the project using CMake:
