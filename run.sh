@@ -2,7 +2,7 @@
 
 # Check if folder path is provided as argument
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <folder_path> [--no-albedo | --ltwo | --scale-albedo | --num-iter <num_iter>]"
+    echo "Usage: $0 <folder_path> [--no-albedo | --ltwo | --scale-albedo | --num-iter <num_iter> | --res <resolution>]"
     exit 1
 fi
 
@@ -28,6 +28,10 @@ while [ $# -gt 1 ]; do
             flags="$flags --num-iter $num_iter"
             shift
             ;;
+        --res)
+            resolution="$3"
+            shift
+            ;;
         *)
             echo "Unknown option: $2"
             exit 1
@@ -48,25 +52,25 @@ if [ "$scale_albedo" = true ]; then
     flags=$(echo "$flags" | sed 's/--no-albedo//')
 
     # Launch without albedo
-    ./run.sh "$case" --no-albedo $flags
+    ./run.sh "$case" --no-albedo $flags --res 512
 
     # Launch with scaled albedos
     python scripts/scale_albedos.py --folder "$case"
     path=$(dirname "$case")
     folder=$(basename "$case")
     folder="${folder}-albedoscaled"
-    ./run.sh "$path/$folder/" $flags
+    ./run.sh "$path/$folder/" $flags 
     exit 0
 fi
+
+# Remove num-iter flag from flags
+flags=$(echo "$flags" | sed 's/--num-iter [0-9]*//')
 
 iterLightOptimal=${num_iter}
 iterWarmupLightGlobal=$(($iterLightOptimal/5*3))
 iterWarmupMask=$(($iterLightOptimal/5))
 
-resolutionMarchingCube="1024"
-
-# Display the command for debugging
-echo ./build/testbed --scene "${case}/" --maxiter "${iterWarmupMask}" --save-snapshot --mask-weight 1.0 --no-gui $flags
+resolutionMarchingCube=${resolution:-1024}
 
 # Execute the commands with the defined variables
 ./build/testbed --scene "${case}/" --maxiter "${iterWarmupMask}" --save-snapshot --mask-weight 1.0 --no-gui $flags

@@ -15,3 +15,5 @@ cmake-build-debug/
 .gitignore
 
 tmp.sh
+scripts/new.ipynb
+run_reprod.sh
