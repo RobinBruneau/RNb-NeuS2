@@ -2,12 +2,16 @@
 
 # Check if folder path is provided as argument
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <folder_path> [--no-albedo | --ltwo | --scale-albedo | --num-iter <num_iter> | --res <resolution>]"
+    echo "Usage: $0 <folder_path> [--no-albedo | --ltwo | --scale-albedo | --num-iter <num_iter> | --res <resolution> | --disable-snap-to-center]"
     exit 1
 fi
 
 # Assign folder path to a variable
 case="$1"
+
+# Log the run.sh command and the run.sh script in the output folder
+cp run.sh "$case/run.sh.log"
+echo "./run.sh $case $@" > "$case/command.log"
 
 # Handle optional arguments
 flags=""
@@ -31,6 +35,9 @@ while [ $# -gt 1 ]; do
         --res)
             resolution="$3"
             shift
+            ;;
+        --disable-snap-to-center)
+            flags="$flags --disable-snap-to-center"
             ;;
         *)
             echo "Unknown option: $2"
