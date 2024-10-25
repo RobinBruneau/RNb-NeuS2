@@ -277,6 +277,10 @@ void Testbed::apply_L2() {
     m_apply_L2 = true;
 }
 
+void Testbed::apply_supernormal() {
+	m_apply_supernormal = true;
+}
+
 void Testbed::apply_bce() {
     m_apply_bce = true;
 }

@@ -47,6 +47,13 @@ int main(int argc, char** argv) {
             {"ltwo"},
     };
 
+    Flag supernormal_flag{
+            parser,
+            "SUPERNORMAL",
+            "Activate Supernormal loss function",
+            {"supernormal"},
+    };
+
     Flag relu_flag{
             parser,
             "RELU",
@@ -200,6 +207,9 @@ int main(int argc, char** argv) {
     if (ltwo_flag){
         testbed.apply_L2();
     }
+    if (supernormal_flag){
+        testbed.apply_supernormal();
+    }
     if (bce_flag){
         testbed.apply_bce();
     }
@@ -304,9 +314,7 @@ int main(int argc, char** argv) {
         testbed.compute_and_save_marching_cubes_mesh(obj_filename_buf,resMesh,{},0.0f,false);
     }
 
-    std::string  snpashot_filename = folder_name +"/snapshot_"+to_string(testbed.get_max_iter())+".msgpack";
-
-
+    std::string snpashot_filename = folder_name +"/snapshot_"+to_string(testbed.get_max_iter())+".msgpack";
     if(save_snapshot_flag){
         tlog::info() << "Saving Snapshot !";
         tlog::info() << snpashot_filename;

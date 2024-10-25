@@ -4015,6 +4015,7 @@ void Testbed::train_nerf_step(uint32_t target_batch_size, uint32_t n_rays_per_ba
 		m_ek_loss_weight,
 		m_nerf_network->cos_anneal_ratio(),
 		m_apply_L2,
+		m_apply_supernormal,
 		m_apply_relu,
 		m_apply_bce,
 		m_light_opti,

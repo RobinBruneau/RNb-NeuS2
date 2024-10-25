@@ -320,6 +320,7 @@ public:
 	void apply_no_albedo();
 	void apply_normalization();
 	void apply_L2();
+	void apply_supernormal();
 	void apply_bce();
 	void apply_relu();
     uint32_t get_max_iter();
