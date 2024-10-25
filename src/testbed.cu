@@ -280,6 +280,10 @@ void Testbed::apply_L2() {
 void Testbed::apply_supernormal() {
 	m_apply_supernormal = true;
 }
+void Testbed::disable_snap_to_center() {
+	m_nerf.training.snap_to_pixel_centers = false;
+	// m_snap_to_pixel_centers = false;
+}
 
 void Testbed::apply_bce() {
     m_apply_bce = true;

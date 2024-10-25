@@ -54,6 +54,13 @@ int main(int argc, char** argv) {
             {"supernormal"},
     };
 
+    Flag disable_snap_to_center_flag{
+            parser,
+            "DISABLE_SNAP_TO_CENTER",
+            "Disable snap to center for the camera !",
+            {"disable-snap-to-center"},
+    };
+
     Flag relu_flag{
             parser,
             "RELU",
@@ -209,6 +216,9 @@ int main(int argc, char** argv) {
     }
     if (supernormal_flag){
         testbed.apply_supernormal();
+    }
+    if (disable_snap_to_center_flag){
+        testbed.disable_snap_to_center();
     }
     if (bce_flag){
         testbed.apply_bce();

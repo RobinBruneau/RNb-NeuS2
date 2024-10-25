@@ -321,6 +321,7 @@ public:
 	void apply_normalization();
 	void apply_L2();
 	void apply_supernormal();
+	void disable_snap_to_center();
 	void apply_bce();
 	void apply_relu();
     uint32_t get_max_iter();
