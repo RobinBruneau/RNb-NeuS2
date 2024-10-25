@@ -500,6 +500,7 @@ public:
 	bool m_light_opti = false;
 	bool m_no_albedo = false;
 	bool m_apply_L2 = false;
+	bool m_apply_supernormal = false;
 	bool m_apply_bce = false;
 	bool m_apply_relu = false;
 	float m_prev_scale = 1.0;

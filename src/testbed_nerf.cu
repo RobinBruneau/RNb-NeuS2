@@ -1520,6 +1520,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	const float ek_loss_weight,
 	const float cos_anneal_ratio,
 	const bool apply_L2,
+	const bool apply_supernormal,
 	const bool apply_relu,
 	const bool apply_bce,
 	const bool apply_light_opti,
@@ -1574,7 +1575,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	normal_value /= normal_value.matrix().norm();
 
 	Array3f albedo_value;
-	if (apply_no_albedo){
+	if (apply_no_albedo || apply_supernormal){
 		albedo_value = Eigen::Array3f::Constant(1.0f);
 	}
 	else {
@@ -1590,10 +1591,15 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	Eigen::Vector3f cos_tilt = tilt.array().cos();
 	Eigen::Vector3f sin_tilt = tilt.array().sin();
 
-	Eigen::Matrix3f light_directions;
+	Eigen::Matrix3f light_directions; // lights directions in the camera frame
 	light_directions.row(0) = -sin_slant.cwiseProduct(cos_tilt);
 	light_directions.row(1) = -sin_slant.cwiseProduct(sin_tilt);
 	light_directions.row(2) = -cos_slant;
+
+	if (apply_supernormal) {
+		// Eigen::Matrix3f light_directions = [1, 0 , 0], [0, 1, 0], [0, 0, 1]
+		light_directions = Eigen::Matrix3f::Identity(); 
+	}
 
 	// Initialize random number generator
     curandState state;
@@ -1621,10 +1627,10 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		Eigen::Matrix3f R = cos_theta * Eigen::Matrix3f::Identity() + sin_theta * K + (1 - cos_theta) * KK;
 		light_directions = -R * light_directions;
 	}
-	Eigen::Vector3f light_cam = light_directions.col(random_light);
-	Eigen::Vector3f light = Rt * light_cam;
+	Eigen::Vector3f light_cam = light_directions.col(random_light); // in the camera frame
+	Eigen::Vector3f light = Rt * light_cam; // in the world frame
 
-	float shading_target;
+	float shading_target; // shading target (GT) computed in the camera frame 
 	if (apply_relu){ // Apply ReLU to shading in the 2.5 target shading
 		shading_target = activation_function(normal_value.matrix().dot(light_cam), ENerfActivation::ReLU);
 	}
@@ -1654,7 +1660,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 		const tcnn::vector_t<tcnn::network_precision_t, 16> local_network_output = *(tcnn::vector_t<tcnn::network_precision_t, 16>*)network_output;
 		Array3f albedo;
-		if (apply_no_albedo){
+		if (apply_no_albedo || apply_supernormal){
 			albedo = Array3f(1.0f,1.0f,1.0f);
 		}
 		else {
@@ -1702,8 +1708,8 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		const float weight = alpha * T;
 		Vector3f normal = pos_gradient.matrix();
 
-		float shading;
-		if (apply_relu){ // Apply ReLU to shading
+		float shading; // shading computed in the world frame
+		if (apply_relu){ // Apply ReLU to shading 
  			shading = activation_function(normal.dot(light), ENerfActivation::ReLU);
 		}
 		else {
@@ -1760,7 +1766,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	float mask_certainty = (float) (texsamp_albedo.w() > 0.99); // 1 should be with color
 
 	loss_type = ELossType::L1 ; // Define a default L1 loss
-	if (apply_L2){ // Change to a L2 loss
+	if (apply_L2 || apply_supernormal){ // Change to a L2 loss
 		loss_type = ELossType::L2;
 	}
 
@@ -1874,7 +1880,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		const tcnn::vector_t<tcnn::network_precision_t, 16> local_network_output = *(tcnn::vector_t<tcnn::network_precision_t, 16>*)network_output;
 
 		Array3f albedo;
-		if (apply_no_albedo){
+		if (apply_no_albedo || apply_supernormal){
 			albedo = Array3f(1.0f,1.0f,1.0f);
 		}
 		else {
@@ -1936,7 +1942,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		tcnn::vector_t<tcnn::network_precision_t, 16> local_dL_doutput;
 
 		float opti_rgb = 1.0;
-		if (apply_no_albedo){
+		if (apply_no_albedo || apply_supernormal){
 			opti_rgb = 0.0f;
 		}
 
