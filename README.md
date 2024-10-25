@@ -125,7 +125,7 @@ Note: The provided DiLiGenT-MV dataset already has scaled reflectance maps in th
 - [RNb-NeuS](https://robinbruneau.github.io/publications/rnb_neus.html)
 
 ```bibtex
-@inproceedings{Brument23,
+@inproceedings{Brument24,
     title={RNb-NeuS: Reflectance and Normal-based Multi-View 3D Reconstruction},
     author={Baptiste Brument and Robin Bruneau and Yvain Quéau and Jean Mélou and François Lauze and Jean-Denis Durou and Lilian Calvet},
     booktitle={IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
