@@ -44,4 +44,4 @@ flags=$(echo "$flags" | sed 's/--num-iter [0-9]*//')
 resolutionMarchingCube=${resolution:-1024}
 
 # Execute the commands with the defined variables
-./build/testbed --scene "${case}/" --no-gui --maxiter "${num_iter}" --save-snapshot --save-mesh --mask-weight 1.0 --resolution ${resolutionMarchingCube} --disable-snap-to-center $flags
+./build/testbed --scene "${case}/" --no-gui --maxiter "${num_iter}" --save-snapshot --save-mesh --mask-weight 1.0 --resolution ${resolutionMarchingCube} --disable-snap-to-center --supernormal $flags
