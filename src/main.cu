@@ -293,7 +293,14 @@ int main(int argc, char** argv) {
     if (mask_weight_flag){
         testbed.set_mask_weight(get(mask_weight_flag));
     }
+    
+    
+    tlog::info() << "Snap to pixel center : " << testbed.m_nerf.training.snap_to_pixel_centers;
+    tlog::info() << " " << testbed.m_image.training.snap_to_pixel_centers;
+    tlog::info() << " " <<  testbed.m_snap_to_pixel_centers;
 
+
+    
     // Render/training loop
     while (testbed.frame()) {
         if (!gui) {

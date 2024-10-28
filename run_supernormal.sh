@@ -11,7 +11,7 @@ case="$1"
 
 # Log the run.sh command and the run.sh script in the output folder
 cp run_supernormal.sh "$case/run.sh.log"
-echo "./run_supernormal.sh $case $@" > "$case/command.log"
+echo "./run_supernormal.sh $@" > "$case/command.log"
 
 # Handle optional arguments
 flags=""
