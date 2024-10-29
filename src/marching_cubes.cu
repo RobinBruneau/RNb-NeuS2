@@ -931,7 +931,7 @@ void save_mesh(
 			fprintf(f,"v %0.5f %0.5f %0.5f %0.3f %0.3f %0.3f\n", p.x(), p.y(), p.z(), tcnn::clamp(c.x(), 0.f, 1.f), tcnn::clamp(c.y(), 0.f, 1.f), tcnn::clamp(c.z(), 0.f, 1.f));
 		}
 		for (auto &v: cpunormals) {
-			auto n = v.normalized();
+			auto n = (n2w_s*v).normalized();
 			fprintf(f,"vn %0.5f %0.5f %0.5f\n", n.x(), n.y(), n.z());
 		}
 		if (unwrap_it) {

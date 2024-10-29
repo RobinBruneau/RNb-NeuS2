@@ -1241,8 +1241,16 @@ inline __device__ Vector2f nerf_random_image_pos_training(default_rng_t& rng, co
 	}
 
 	if (snap_to_pixel_centers) {
-		xy = (xy.cwiseProduct(resolution.cast<float>()).cast<int>().cwiseMax(0).cwiseMin(resolution - Vector2i::Ones()).cast<float>() + Vector2f::Constant(0.5f)).cwiseQuotient(resolution.cast<float>());
+		Vector2f xy_before = xy;
+		Vector2f xy_in_pixels = xy.cwiseProduct(resolution.cast<float>()).cwiseMax(Vector2f::Constant(0.0f)).cwiseMin((resolution - Vector2i::Ones()).cast<float>());
+		Vector2f xy_in_pixels_offset = xy_in_pixels + Vector2f::Constant(0.5f);
+		xy = (xy_in_pixels_offset.cwiseQuotient(resolution.cast<float>()));
+		printf("xy_before: %f %f, xy_in_pixels: %f %f, xy_in_pixels_offset: %f %f, xy_after: %f %f, resolution: %d %d\n", xy_before.x(), xy_before.y(), xy_in_pixels.x(), xy_in_pixels.y(), xy_in_pixels_offset.x(), xy_in_pixels_offset.y(), xy.x(), xy.y(), resolution.x(), resolution.y());
+
+		// xy = (xy.cwiseProduct(resolution.cast<float>()).cast<int>().cwiseMax(0).cwiseMin(resolution - Vector2i::Ones()).cast<float>() + Vector2f::Constant(0.5f)).cwiseQuotient(resolution.cast<float>());
+		// printf("xy_before: %f %f, xy_after: %f %f, resolution: %f %f\n", xy_before.x(), xy_before.y(), xy.x(), xy.y(), resolution.x(), resolution.y());
 	}
+
 	return xy;
 }
 
