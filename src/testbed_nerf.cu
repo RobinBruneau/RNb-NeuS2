@@ -1245,7 +1245,7 @@ inline __device__ Vector2f nerf_random_image_pos_training(default_rng_t& rng, co
 		Vector2f xy_in_pixels = xy.cwiseProduct(resolution.cast<float>()).cwiseMax(Vector2f::Constant(0.0f)).cwiseMin((resolution - Vector2i::Ones()).cast<float>());
 		Vector2f xy_in_pixels_offset = xy_in_pixels + Vector2f::Constant(0.5f);
 		xy = (xy_in_pixels_offset.cwiseQuotient(resolution.cast<float>()));
-		printf("xy_before: %f %f, xy_in_pixels: %f %f, xy_in_pixels_offset: %f %f, xy_after: %f %f, resolution: %d %d\n", xy_before.x(), xy_before.y(), xy_in_pixels.x(), xy_in_pixels.y(), xy_in_pixels_offset.x(), xy_in_pixels_offset.y(), xy.x(), xy.y(), resolution.x(), resolution.y());
+		// printf("xy_before: %f %f, xy_in_pixels: %f %f, xy_in_pixels_offset: %f %f, xy_after: %f %f, resolution: %d %d\n", xy_before.x(), xy_before.y(), xy_in_pixels.x(), xy_in_pixels.y(), xy_in_pixels_offset.x(), xy_in_pixels_offset.y(), xy.x(), xy.y(), resolution.x(), resolution.y());
 
 		// xy = (xy.cwiseProduct(resolution.cast<float>()).cast<int>().cwiseMax(0).cwiseMin(resolution - Vector2i::Ones()).cast<float>() + Vector2f::Constant(0.5f)).cwiseQuotient(resolution.cast<float>());
 		// printf("xy_before: %f %f, xy_after: %f %f, resolution: %f %f\n", xy_before.x(), xy_before.y(), xy.x(), xy.y(), resolution.x(), resolution.y());
@@ -1583,7 +1583,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	normal_value /= normal_value.matrix().norm();
 
 	Array3f albedo_value;
-	if (apply_no_albedo || apply_supernormal){
+	if (apply_no_albedo){
 		albedo_value = Eigen::Array3f::Constant(1.0f);
 	}
 	else {
@@ -1668,7 +1668,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 		const tcnn::vector_t<tcnn::network_precision_t, 16> local_network_output = *(tcnn::vector_t<tcnn::network_precision_t, 16>*)network_output;
 		Array3f albedo;
-		if (apply_no_albedo || apply_supernormal){
+		if (apply_no_albedo){
 			albedo = Array3f(1.0f,1.0f,1.0f);
 		}
 		else {
@@ -1888,7 +1888,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		const tcnn::vector_t<tcnn::network_precision_t, 16> local_network_output = *(tcnn::vector_t<tcnn::network_precision_t, 16>*)network_output;
 
 		Array3f albedo;
-		if (apply_no_albedo || apply_supernormal){
+		if (apply_no_albedo){
 			albedo = Array3f(1.0f,1.0f,1.0f);
 		}
 		else {
@@ -1950,7 +1950,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		tcnn::vector_t<tcnn::network_precision_t, 16> local_dL_doutput;
 
 		float opti_rgb = 1.0;
-		if (apply_no_albedo || apply_supernormal){
+		if (apply_no_albedo){
 			opti_rgb = 0.0f;
 		}
 

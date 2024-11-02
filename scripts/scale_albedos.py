@@ -152,8 +152,8 @@ if __name__ == "__main__":
         mask = mask.astype(np.bool_)
         ind_mask = np.where(mask)
         pixels = np.zeros((ind_mask[0].shape[0], 2))
-        pixels[:, 0] = ind_mask[1] + 0.5
-        pixels[:, 1] = ind_mask[0] + 0.5
+        pixels[:, 0] = ind_mask[1]
+        pixels[:, 1] = ind_mask[0]
 
         # Get albedo values for all pixels
         albedo = albedos[cam_id, :, :, :]
@@ -220,7 +220,7 @@ if __name__ == "__main__":
                 intersection_in_neighbor = intersection_in_neighbor[:2]
 
                 # Ensure pixel_in_neighbor is in the correct shape for interpolation
-                pixel_in_neighbor = np.array([intersection_in_neighbor[1]-0.5, intersection_in_neighbor[0]-0.5]).reshape(1, 2)
+                pixel_in_neighbor = np.array([intersection_in_neighbor[1], intersection_in_neighbor[0]]).reshape(1, 2)
 
                 if 0 <= pixel_in_neighbor[0, 0] < h and 0 <= pixel_in_neighbor[0, 1] < w:
                     # Create interpolation function for albedo values

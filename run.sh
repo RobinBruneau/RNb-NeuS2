@@ -2,7 +2,7 @@
 
 # Check if folder path is provided as argument
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <folder_path> [--no-albedo | --ltwo | --scale-albedo | --num-iter <num_iter> | --res <resolution> | --disable-snap-to-center]"
+    echo "Usage: $0 <folder_path> [--no-albedo | --ltwo | --scale-albedo | --num-iter <num_iter> | --res <resolution> | --disable-snap-to-center | --not-opti-lights ]"
     exit 1
 fi
 
@@ -39,6 +39,10 @@ while [ $# -gt 1 ]; do
         --disable-snap-to-center)
             flags="$flags --disable-snap-to-center"
             ;;
+        --not-opti-lights)
+            flags="$flags --not-opti-lights"
+            not_opti_lights=true
+            ;;
         *)
             echo "Unknown option: $2"
             exit 1
@@ -59,7 +63,7 @@ if [ "$scale_albedo" = true ]; then
     flags=$(echo "$flags" | sed 's/--no-albedo//')
 
     # Launch without albedo
-    ./run.sh "$case" --no-albedo $flags --res 512
+    ./run.sh "$case" --no-albedo $flags --res $resolution
 
     # Launch with scaled albedos
     python scripts/scale_albedos.py --folder "$case"
@@ -74,12 +78,17 @@ fi
 flags=$(echo "$flags" | sed 's/--num-iter [0-9]*//')
 
 iterLightOptimal=${num_iter}
-iterWarmupLightGlobal=$(($iterLightOptimal/5*3))
-iterWarmupMask=$(($iterLightOptimal/5))
+iterWarmupLightGlobal=$(($iterLightOptimal/3*2))
 
 resolutionMarchingCube=${resolution:-1024}
 
 # Execute the commands with the defined variables
-./build/testbed --scene "${case}/" --maxiter "${iterWarmupMask}" --save-snapshot --mask-weight 1.0 --no-gui $flags
-./build/testbed --scene "${case}/" --maxiter "${iterWarmupLightGlobal}" --save-snapshot --mask-weight 0.3 --no-gui --snapshot "${case}/snapshot_${iterWarmupMask}.msgpack" $flags
-./build/testbed --scene "${case}/" --maxiter "${iterLightOptimal}" --save-snapshot --mask-weight 0.3 --no-gui --snapshot "${case}/snapshot_${iterWarmupLightGlobal}.msgpack" --save-mesh --resolution "${resolutionMarchingCube}" --opti-lights $flags
+./build/testbed --scene "${case}/" --maxiter "${iterWarmupLightGlobal}" --save-snapshot --mask-weight 1.0 --no-gui $flags
+
+if [ "$not_opti_lights" = true ]; then
+    flags=$(echo "$flags" | sed 's/--not-opti-lights//')
+    ./build/testbed --scene "${case}/" --maxiter "${iterLightOptimal}" --save-snapshot --mask-weight 1.0 --no-gui --snapshot "${case}/snapshot_${iterWarmupLightGlobal}.msgpack" --save-mesh --resolution "${resolutionMarchingCube}" $flags
+    exit 0
+fi
+./build/testbed --scene "${case}/" --maxiter "${iterLightOptimal}" --save-snapshot --mask-weight 1.0 --no-gui --snapshot "${case}/snapshot_${iterWarmupLightGlobal}.msgpack" --save-mesh --resolution "${resolutionMarchingCube}" --opti-lights $flags
+exit 0
