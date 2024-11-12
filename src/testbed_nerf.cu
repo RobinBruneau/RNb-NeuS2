@@ -1554,11 +1554,10 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	Array3f rgb_ray = Array3f::Zero(); // modification
 	Vector3f hitpoint = Vector3f::Zero();
 
-	uint32_t ray_idx = ray_indices_in[i];
-	rng.advance(ray_idx * N_MAX_RANDOM_SAMPLES_PER_RAY());
-
-	float img_pdf = 1.0f;
-	uint32_t img = image_idx(ray_idx, n_rays, n_rays_total, n_training_images, cdf_img, &img_pdf);
+	// uint32_t ray_idx = ray_indices_in[i];
+	// rng.advance(ray_idx * N_MAX_RANDOM_SAMPLES_PER_RAY());
+	// float img_pdf = 1.0f;
+	// uint32_t img = image_idx(ray_idx, n_rays, n_rays_total, n_training_images, cdf_img, &img_pdf);
 
 	float depth_ray = 0.f;
 	float weight_sum = 0.f;
@@ -1774,7 +1773,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	float mask_certainty = (float) (texsamp_albedo.w() > 0.99); // 1 should be with color
 
 	loss_type = ELossType::L1 ; // Define a default L1 loss
-	if (apply_L2 || apply_supernormal){ // Change to a L2 loss
+	if (apply_L2){ // Change to a L2 loss
 		loss_type = ELossType::L2;
 	}
 

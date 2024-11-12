@@ -76,6 +76,7 @@ fi
 
 # Remove num-iter flag from flags
 flags=$(echo "$flags" | sed 's/--num-iter [0-9]*//')
+flags=$(echo "$flags" | sed 's/--not-opti-lights//')
 
 iterLightOptimal=${num_iter}
 iterWarmupLightGlobal=$(($iterLightOptimal/3*2))
@@ -83,12 +84,15 @@ iterWarmupLightGlobal=$(($iterLightOptimal/3*2))
 resolutionMarchingCube=${resolution:-1024}
 
 # Execute the commands with the defined variables
+echo "./build/testbed --scene ${case}/ --maxiter ${iterWarmupLightGlobal} --save-snapshot --mask-weight 1.0 --no-gui $flags"
 ./build/testbed --scene "${case}/" --maxiter "${iterWarmupLightGlobal}" --save-snapshot --mask-weight 1.0 --no-gui $flags
 
 if [ "$not_opti_lights" = true ]; then
-    flags=$(echo "$flags" | sed 's/--not-opti-lights//')
+    echo "./build/testbed --scene ${case}/ --maxiter ${iterLightOptimal} --save-snapshot --mask-weight 1.0 --no-gui --snapshot ${case}/snapshot_${iterWarmupLightGlobal}.msgpack --save-mesh --resolution ${resolutionMarchingCube} $flags"
     ./build/testbed --scene "${case}/" --maxiter "${iterLightOptimal}" --save-snapshot --mask-weight 1.0 --no-gui --snapshot "${case}/snapshot_${iterWarmupLightGlobal}.msgpack" --save-mesh --resolution "${resolutionMarchingCube}" $flags
     exit 0
 fi
+
+echo "./build/testbed --scene ${case}/ --maxiter ${iterLightOptimal} --save-snapshot --mask-weight 1.0 --no-gui --snapshot ${case}/snapshot_${iterWarmupLightGlobal}.msgpack --save-mesh --resolution ${resolutionMarchingCube} --opti-lights $flags"
 ./build/testbed --scene "${case}/" --maxiter "${iterLightOptimal}" --save-snapshot --mask-weight 1.0 --no-gui --snapshot "${case}/snapshot_${iterWarmupLightGlobal}.msgpack" --save-mesh --resolution "${resolutionMarchingCube}" --opti-lights $flags
 exit 0

@@ -2,7 +2,7 @@
 
 # Check if folder path is provided as argument
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <folder_path> [--num-iter <num_iter> | --res <resolution> | --disable-snap-to-center | --no-albedo]"
+    echo "Usage: $0 <folder_path> [--num-iter <num_iter> | --res <resolution> | --disable-snap-to-center | --no-albedo | --ltwo]"
     exit 1
 fi
 
@@ -31,6 +31,9 @@ while [ $# -gt 1 ]; do
             ;;
         --no-albedo)
             flags="$flags --no-albedo"
+            ;;
+        --ltwo)
+            flags="$flags --ltwo"
             ;;
         *)
             echo "Unknown option: $2"
