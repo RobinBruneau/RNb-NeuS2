@@ -52,7 +52,6 @@ Ensure you have Python and the following libraries installed:
 - Glob
 - Shutil
 - PyOctree
-- Scipy
 
 ## Data Convention
 
