@@ -254,8 +254,8 @@ __device__ float network_to_pos_gradient(float val, ENerfActivation activation) 
 }
 
 struct LossAndGradient {
-	Eigen::Array3f loss;
-	Eigen::Array3f gradient;
+	Eigen::Array4f loss;
+	Eigen::Array4f gradient;
 
 	__host__ __device__ LossAndGradient operator*(float scalar) {
 		return {loss * scalar, gradient * scalar};
@@ -266,100 +266,32 @@ struct LossAndGradient {
 	}
 };
 
-inline __device__ Array3f copysign(const Array3f& a, const Array3f& b) {
+inline __device__ Array4f copysign(const Array4f& a, const Array4f& b) {
 	return {
 		copysignf(a.x(), b.x()),
 		copysignf(a.y(), b.y()),
 		copysignf(a.z(), b.z()),
+		copysignf(a.w(), b.w())
 	};
 }
 
-inline __device__ LossAndGradient l2_loss(const Array3f& target, const Array3f& prediction) {
-	Array3f difference = prediction - target;
+inline __device__ LossAndGradient l2_loss(const Array4f& target, const Array4f& prediction) {
+	Array4f difference = prediction - target;
 	return {
 		difference * difference,
 		2.0f * difference
 	};
 }
 
-inline __device__ LossAndGradient relative_l2_loss(const Array3f& target, const Array3f& prediction) {
-	Array3f difference = prediction - target;
-	Array3f factor = (prediction * prediction + Array3f::Constant(1e-2f)).inverse();
-	return {
-		difference * difference * factor,
-		2.0f * difference * factor
-	};
-}
 
-inline __device__ LossAndGradient l1_loss(const Array3f& target, const Array3f& prediction) {
-	Array3f difference = prediction - target;
+inline __device__ LossAndGradient l1_loss(const Array4f& target, const Array4f& prediction) {
+	Array4f difference = prediction - target;
 	return {
 		difference.abs(),
-		copysign(Array3f::Ones(), difference),
+		copysign(Array4f::Ones(), difference),
 	};
 }
 
-inline __device__ LossAndGradient huber_loss(const Array3f& target, const Array3f& prediction, float alpha = 1) {
-	Array3f difference = prediction - target;
-	Array3f abs_diff = difference.abs();
-	Array3f square = 0.5f/alpha * difference * difference;
-	return {
-		{
-			abs_diff.x() > alpha ? (abs_diff.x() - 0.5f * alpha) : square.x(),
-			abs_diff.y() > alpha ? (abs_diff.y() - 0.5f * alpha) : square.y(),
-			abs_diff.z() > alpha ? (abs_diff.z() - 0.5f * alpha) : square.z(),
-		},
-		{
-			abs_diff.x() > alpha ? (difference.x() > 0 ? 1.0f : -1.0f) : (difference.x() / alpha),
-			abs_diff.y() > alpha ? (difference.y() > 0 ? 1.0f : -1.0f) : (difference.y() / alpha),
-			abs_diff.z() > alpha ? (difference.z() > 0 ? 1.0f : -1.0f) : (difference.z() / alpha),
-		},
-	};
-}
-
-inline __device__ LossAndGradient log_l1_loss(const Array3f& target, const Array3f& prediction) {
-	Array3f difference = prediction - target;
-	Array3f divisor = difference.abs() + Array3f::Ones();
-	return {
-		divisor.log(),
-		copysign(divisor.inverse(), difference),
-	};
-}
-
-inline __device__ LossAndGradient geodesic_loss(const Array3f& target, const Array3f& prediction) {
-	Vector3f target_v = target.matrix();
-	Matrix<float,1,3> pred_vt = prediction.matrix().transpose();
-	Vector3f pred_v = prediction.matrix();
-	float dot_product = target_v.dot(pred_v);
-	float arcos = acos(dot_product);
-	float sqrt_ = sqrt(1-dot_product*dot_product);
-
-	Eigen::Matrix3f identity = Eigen::Matrix3f::Identity();
-	Eigen::Matrix3f nnt = pred_v * pred_vt;
-	Eigen::Matrix3f projection = identity - nnt;
-	return {
-		- (arcos / sqrt_) * target,
-		- (arcos / sqrt_) * projection * target_v,
-	};
-}
-
-inline __device__ LossAndGradient smape_loss(const Array3f& target, const Array3f& prediction) {
-	Array3f difference = prediction - target;
-	Array3f factor = (0.5f * (prediction.abs() + target.abs()) + Array3f::Constant(1e-2f)).inverse();
-	return {
-		difference.abs() * factor,
-		copysign(factor, difference),
-	};
-}
-
-inline __device__ LossAndGradient mape_loss(const Array3f& target, const Array3f& prediction) {
-	Array3f difference = prediction - target;
-	Array3f factor = (prediction.abs() + Array3f::Constant(1e-2f)).inverse();
-	return {
-		difference.abs() * factor,
-		copysign(factor, difference),
-	};
-}
 
 inline __device__ float distance_to_next_voxel(const Vector3f& pos, const Vector3f& dir, const Vector3f& idir, uint32_t res) { // dda like step
 	Vector3f p = res * pos;
@@ -1449,20 +1381,9 @@ __global__ void generate_training_samples_nerf_with_global_movement(
 	}
 }
 
-__device__ LossAndGradient loss_and_gradient(const Vector3f& target, const Vector3f& prediction, ELossType loss_type) {
+__device__ LossAndGradient loss_and_gradient(const Vector4f& target, const Vector4f& prediction, ELossType loss_type) {
 	switch (loss_type) {
-		case ELossType::RelativeL2:  return relative_l2_loss(target, prediction); break;
 		case ELossType::L1:          return l1_loss(target, prediction); break;
-		case ELossType::Mape:        return mape_loss(target, prediction); break;
-		case ELossType::Smape:       return smape_loss(target, prediction); break;
-		// Note: we divide the huber loss by a factor of 5 such that its L2 region near zero
-		// matches with the L2 loss and error numbers become more comparable. This allows reading
-		// off dB numbers of ~converged models and treating them as approximate PSNR to compare
-		// with other NeRF methods. Self-normalizing optimizers such as Adam are agnostic to such
-		// constant factors; optimization is therefore unaffected.
-		case ELossType::Huber:       return huber_loss(target, prediction, 0.1f) / 5.0f; break;
-		case ELossType::LogL1:       return log_l1_loss(target, prediction); break;
-		case ELossType::Geodesic:	 return geodesic_loss(target,prediction); break;
 		default: case ELossType::L2: return l2_loss(target, prediction); break;
 	}
 }
@@ -1529,6 +1450,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	const float cos_anneal_ratio,
 	const bool apply_L2,
 	const bool apply_supernormal,
+	const bool apply_rgbplus,
 	const bool apply_relu,
 	const bool apply_bce,
 	const bool apply_light_opti,
@@ -1551,13 +1473,13 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 	// const float cos_anneal_ratio = 1.0f;
 
-	Array3f rgb_ray = Array3f::Zero(); // modification
+	Array4f rgb_ray = Array4f::Zero(); // modification
 	Vector3f hitpoint = Vector3f::Zero();
 
-	// uint32_t ray_idx = ray_indices_in[i];
-	// rng.advance(ray_idx * N_MAX_RANDOM_SAMPLES_PER_RAY());
-	// float img_pdf = 1.0f;
-	// uint32_t img = image_idx(ray_idx, n_rays, n_rays_total, n_training_images, cdf_img, &img_pdf);
+	uint32_t ray_idx = ray_indices_in[i];
+	rng.advance(ray_idx * N_MAX_RANDOM_SAMPLES_PER_RAY());
+	float img_pdf = 1.0f;
+	uint32_t img = image_idx(ray_idx, n_rays, n_rays_total, n_training_images, cdf_img, &img_pdf);
 
 	float depth_ray = 0.f;
 	float weight_sum = 0.f;
@@ -1581,12 +1503,23 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	normal_value[2] *= -1;
 	normal_value /= normal_value.matrix().norm();
 
-	Array3f albedo_value;
+	Array4f albedo_value;
+	Array3f albedo_value3f;
 	if (apply_no_albedo){
-		albedo_value = Eigen::Array3f::Constant(1.0f);
+		albedo_value = Array4f(1.0f,1.0f,1.0f,0.0f);
 	}
 	else {
-		albedo_value = linear_to_srgb(exposure_scale * texsamp_albedo.head<3>());
+		albedo_value3f = linear_to_srgb(exposure_scale * texsamp_albedo.head<3>());
+		// Calculate the 1-norm of albedo3f
+        float norm_value = albedo_value3f.abs().sum();
+
+        // Set albedo with the three values of albedo3f and the fourth as 1 - norm_value
+		if (apply_rgbplus){
+			albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], 1.0f - norm_value;
+		}
+		else{
+			albedo_value << albedo_value3f[0], albedo_value3f[1], 0.0f;
+		}
 	}
 
 	auto radians = [](float deg) { return deg * M_PI / 180.0f; };
@@ -1645,7 +1578,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		shading_target = normal_value.matrix().dot(light_cam);
 	}
 	 
-	Array3f rgbtarget = albedo_value * shading_target;
+	Array4f rgbtarget = albedo_value * shading_target;
 
 	ray_o -= first_frame_offset;
 	if (rotation != nullptr && transition != nullptr) {
@@ -1666,12 +1599,24 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		}
 
 		const tcnn::vector_t<tcnn::network_precision_t, 16> local_network_output = *(tcnn::vector_t<tcnn::network_precision_t, 16>*)network_output;
-		Array3f albedo;
+		Array4f albedo;
+		Array3f albedo3f;
 		if (apply_no_albedo){
-			albedo = Array3f(1.0f,1.0f,1.0f);
+			albedo = Array4f(1.0f,1.0f,1.0f,0.0f);
 		}
 		else {
-			albedo = network_to_rgb(local_network_output, rgb_activation);
+			albedo3f = network_to_rgb(local_network_output, rgb_activation);
+			// Calculate the 1-norm of albedo3f
+			float norm_value = albedo3f.abs().sum();
+
+			// Set albedo with the three values of albedo3f and the fourth as 1 - norm_value
+			if (apply_rgbplus){
+				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 1.0f - norm_value;
+			}
+			else{
+				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 0.0f;
+			}
+			
 		}
 		 
 		const Vector3f pos = unwarp_position(coords_in.ptr->pos.p, aabb);
@@ -1865,7 +1810,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	const float output_l1_reg_density = *mean_density_ptr < NERF_MIN_OPTICAL_THICKNESS() ? 1e-4f : 0.0f;
 
 	// now do it again computing gradients
-	Array3f rgb_ray2 = { 0.f,0.f,0.f }; // modification
+	Array4f rgb_ray2 = { 0.f,0.f,0.f,0.0f }; // modification
 	float weight_sum2 = 0.f;
 	float depth_ray2 = 0.f;
 	T = 1.f;
@@ -1886,12 +1831,23 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		float dt = unwarp_dt(coord_in->dt);
 		const tcnn::vector_t<tcnn::network_precision_t, 16> local_network_output = *(tcnn::vector_t<tcnn::network_precision_t, 16>*)network_output;
 
-		Array3f albedo;
+		Array4f albedo;
+		Array3f albedo3f;
 		if (apply_no_albedo){
-			albedo = Array3f(1.0f,1.0f,1.0f);
+			albedo = Array4f(1.0f,1.0f,1.0f,0.0f);
 		}
 		else {
-			albedo = network_to_rgb(local_network_output, rgb_activation);
+			albedo3f = network_to_rgb(local_network_output, rgb_activation);
+			// Calculate the 1-norm of albedo3f
+			float norm_value = albedo3f.abs().sum();
+
+			// Set albedo with the three values of albedo3f and the fourth as 1 - norm_value
+			if (apply_rgbplus){
+				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 1.0f - norm_value;
+			}
+			else{
+				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 0.0f;
+			}
 		}
 		
 		float inv_s = __expf((tcnn::network_precision_t)10 * local_network_output[7]);
@@ -1935,15 +1891,15 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		T *= (1.f - alpha);
 
 		// we know the suffix of this ray compared to where we are up to. note the suffix depends on this step's alpha as suffix = (1-alpha)*(somecolor), so dsuffix/dalpha = -somecolor = -suffix/(1-alpha)
-		const Array3f suffix = rgb_ray - rgb_ray2; // modification
+		const Array4f suffix = rgb_ray - rgb_ray2; // modification
 		Array3f dloss_dn ;
 
-		Matrix<float,1,3> albedo_transpose = albedo.matrix().transpose();
-		Matrix3f light_albedo = light * albedo_transpose;
+		Matrix<float,1,4> albedo_transpose = albedo.matrix().transpose();
+		Matrix<float,3,4> light_albedo = light * albedo_transpose;
 		dloss_dn = weight * light_albedo * lg.gradient.matrix(); // modification : pas sur du tout ! produit matriciel ?
 		
 
-		const Array3f dloss_by_drgb = weight * shading * lg.gradient;
+		const Array4f dloss_by_drgb = weight * shading * lg.gradient;
 		
 
 		tcnn::vector_t<tcnn::network_precision_t, 16> local_dL_doutput;
@@ -4029,6 +3985,7 @@ void Testbed::train_nerf_step(uint32_t target_batch_size, uint32_t n_rays_per_ba
 		m_nerf_network->cos_anneal_ratio(),
 		m_apply_L2,
 		m_apply_supernormal,
+		m_apply_rgbplus,
 		m_apply_relu,
 		m_apply_bce,
 		m_light_opti,

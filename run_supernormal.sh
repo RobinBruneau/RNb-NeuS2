@@ -2,7 +2,7 @@
 
 # Check if folder path is provided as argument
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <folder_path> [--num-iter <num_iter> | --res <resolution> | --disable-snap-to-center | --no-albedo | --ltwo]"
+    echo "Usage: $0 <folder_path> [--num-iter <num_iter> | --res <resolution> | --disable-snap-to-center | --no-albedo | --ltwo | --rgbplus]"
     exit 1
 fi
 
@@ -35,6 +35,9 @@ while [ $# -gt 1 ]; do
         --ltwo)
             flags="$flags --ltwo"
             ;;
+        --rgbplus)
+            flags="$flags --rgbplus"
+            ;;
         *)
             echo "Unknown option: $2"
             exit 1
@@ -45,7 +48,7 @@ done
 
 # If --num-iter is not provided, set it to 10000
 if [ -z "$num_iter" ]; then
-    num_iter=10000
+    num_iter=5000
 fi
 
 # Remove num-iter flag from flags
@@ -54,4 +57,4 @@ flags=$(echo "$flags" | sed 's/--num-iter [0-9]*//')
 resolutionMarchingCube=${resolution:-1024}
 
 # Execute the commands with the defined variables
-./build/testbed --scene "${case}/" --no-gui --maxiter "${num_iter}" --save-snapshot --save-mesh --mask-weight 1.0 --resolution ${resolutionMarchingCube} --supernormal $flags
+./build/testbed --scene "${case}/" --maxiter "${num_iter}" --save-snapshot --save-mesh --mask-weight 1.0 --resolution ${resolutionMarchingCube} --supernormal $flags

@@ -54,6 +54,13 @@ int main(int argc, char** argv) {
             {"supernormal"},
     };
 
+    Flag rgbplus_flag{
+            parser,
+            "RGB_PLUS",
+            "Activate rgb normalisation",
+            {"rgbplus"},
+    };
+
     Flag disable_snap_to_center_flag{
             parser,
             "DISABLE_SNAP_TO_CENTER",
@@ -216,6 +223,9 @@ int main(int argc, char** argv) {
     }
     if (supernormal_flag){
         testbed.apply_supernormal();
+    }
+    if (rgbplus_flag){
+        testbed.apply_rgbplus();
     }
     if (disable_snap_to_center_flag){
         testbed.disable_snap_to_center();

@@ -321,6 +321,7 @@ public:
 	void apply_normalization();
 	void apply_L2();
 	void apply_supernormal();
+	void apply_rgbplus();
 	void disable_snap_to_center();
 	void apply_bce();
 	void apply_relu();
@@ -502,6 +503,7 @@ public:
 	bool m_no_albedo = false;
 	bool m_apply_L2 = false;
 	bool m_apply_supernormal = false;
+	bool m_apply_rgbplus = false;
 	bool m_apply_bce = false;
 	bool m_apply_relu = false;
 	float m_prev_scale = 1.0;
