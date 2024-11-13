@@ -1468,6 +1468,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	network_output += base * padded_output_width;
 
 	float T = 1.f;
+	float racine_3 = sqrtf(3.0f);
 
 	float EPSILON = 1e-4f;
 
@@ -1511,14 +1512,14 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	else {
 		albedo_value3f = linear_to_srgb(exposure_scale * texsamp_albedo.head<3>());
 		// Calculate the 1-norm of albedo3f
-        float norm_value = albedo_value3f.abs().sum();
+        float norm_value = albedo_value3f.matrix().norm();
 
         // Set albedo with the three values of albedo3f and the fourth as 1 - norm_value
 		if (apply_rgbplus){
-			albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], 1.0f - norm_value;
+			albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], racine_3 - norm_value;
 		}
 		else{
-			albedo_value << albedo_value3f[0], albedo_value3f[1], 0.0f;
+			albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], 0.0f;
 		}
 	}
 
@@ -1607,11 +1608,11 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		else {
 			albedo3f = network_to_rgb(local_network_output, rgb_activation);
 			// Calculate the 1-norm of albedo3f
-			float norm_value = albedo3f.abs().sum();
+			float norm_value = albedo3f.matrix().norm();
 
 			// Set albedo with the three values of albedo3f and the fourth as 1 - norm_value
 			if (apply_rgbplus){
-				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 1.0f - norm_value;
+				albedo << albedo3f[0], albedo3f[1], albedo3f[2], racine_3 - norm_value;
 			}
 			else{
 				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 0.0f;
@@ -1839,15 +1840,16 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		else {
 			albedo3f = network_to_rgb(local_network_output, rgb_activation);
 			// Calculate the 1-norm of albedo3f
-			float norm_value = albedo3f.abs().sum();
+			float norm_value = albedo3f.matrix().norm();
 
 			// Set albedo with the three values of albedo3f and the fourth as 1 - norm_value
 			if (apply_rgbplus){
-				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 1.0f - norm_value;
+				albedo << albedo3f[0], albedo3f[1], albedo3f[2], racine_3 - norm_value;
 			}
 			else{
 				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 0.0f;
 			}
+			
 		}
 		
 		float inv_s = __expf((tcnn::network_precision_t)10 * local_network_output[7]);
