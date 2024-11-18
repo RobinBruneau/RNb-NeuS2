@@ -2,7 +2,7 @@
 
 # Check if folder path is provided as argument
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <folder_path> [--no-albedo | --ltwo | --scale-albedo | --num-iter <num_iter> | --res <resolution> | --disable-snap-to-center | --not-opti-lights ]"
+    echo "Usage: $0 <folder_path> [--no-albedo | --ltwo | --scale-albedo | --num-iter <num_iter> | --res <resolution> | --disable-snap-to-center | --not-opti-lights | --rgbplus]"
     exit 1
 fi
 
@@ -42,6 +42,9 @@ while [ $# -gt 1 ]; do
         --not-opti-lights)
             flags="$flags --not-opti-lights"
             not_opti_lights=true
+            ;;
+        --rgbplus)
+            flags="$flags --rgbplus"
             ;;
         *)
             echo "Unknown option: $2"
