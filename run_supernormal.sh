@@ -2,7 +2,7 @@
 
 # Check if folder path is provided as argument
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <folder_path> [--num-iter <num_iter> | --res <resolution> | --disable-snap-to-center | --no-albedo | --ltwo]"
+    echo "Usage: $0 <folder_path> [--num-iter <num_iter> | --res <resolution> | --disable-snap-to-center | --no-albedo | --ltwo | --rgbplus]"
     exit 1
 fi
 
@@ -35,6 +35,9 @@ while [ $# -gt 1 ]; do
         --ltwo)
             flags="$flags --ltwo"
             ;;
+        --rgbplus)
+            flags="$flags --rgbplus"
+            ;;
         *)
             echo "Unknown option: $2"
             exit 1
@@ -45,7 +48,7 @@ done
 
 # If --num-iter is not provided, set it to 10000
 if [ -z "$num_iter" ]; then
-    num_iter=10000
+    num_iter=5000
 fi
 
 # Remove num-iter flag from flags
