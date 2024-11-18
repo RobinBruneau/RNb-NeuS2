@@ -1,26 +1,20 @@
-# RNb-NeuS2
+<div align="center">
+<h1>RNb-NeuS2</h1>
+
+[**Robin Bruneau**](https://robinbruneau.github.io/)<sup><span>&#9733;</span></sup> · [**Baptiste Brument**](https://bbrument.github.io/)<sup><span>&#9733;</span></sup> · [**Yvain Quéau**](https://sites.google.com/view/yvainqueau)
+<br>
+[**Jean Mélou**](https://www.irit.fr/~Jean.Melou/) · [**François Lauze**](https://loutchoa.github.io/) · [**Jean-Denis Durou**](https://www.irit.fr/~Jean-Denis.Durou/) · [**Lilian Calvet**](https://scholar.google.com/citations?user=6JewdrMAAAAJ&hl=en)
+
+<span>&#9733;</span> corresponding author
+
+<a href="https://arxiv.org/abs/2312.01215"><img src='https://img.shields.io/badge/arXiv-RNb--NeuS2-red' alt='Paper PDF'></a>
+<a href='https://robinbruneau.github.io/publications/rnb_neus.html'><img src='https://img.shields.io/badge/Project_Page-RNb--Neus2-green' alt='Project Page'></a>
+</div>
 
 Welcome to the official CUDA implementation of **RNb-NeuS: Reflectance and Normal-based Multi-View 3D Reconstruction**.
 
-## Authors
-
-[Robin Bruneau](https://robinbruneau.github.io/),  
-[Baptiste Brument](https://bbrument.github.io/),  
-[Yvain Quéau](https://sites.google.com/view/yvainqueau),  
-[Jean Mélou](https://www.irit.fr/~Jean.Melou/),  
-[François Lauze](https://loutchoa.github.io/),  
-[Jean-Denis Durou](https://www.irit.fr/~Jean-Denis.Durou/),  
-[Lilian Calvet](https://scholar.google.com/citations?user=6JewdrMAAAAJ&hl=en)
-
-### Resources
-
-- [Project Page](https://robinbruneau.github.io/publications/rnb_neus.html)
-- [Paper](https://arxiv.org/abs/2312.01215)
-
-
 ## Table of Contents
 
-- [Gallery](#gallery)
 - [Installation](#installation)
 - [Training](#training)
 - [Data](#data)
