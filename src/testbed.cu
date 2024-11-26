@@ -273,10 +273,10 @@ void Testbed::apply_no_albedo(bool activate) {
     m_no_albedo = activate;
 }
 
-void Testbed::apply_fractional_training(uint32_t frac_p1, uint32_t frac_p2) {
-	m_fractional_p1 = frac_p1;
+void Testbed::apply_fractional_training(uint32_t frac) {
+	m_fractional = frac;
 	m_fractional_training = true;
-	m_fractional_p2 = frac_p2;
+
 }
 
 void Testbed::apply_L2() {
@@ -1839,19 +1839,13 @@ bool Testbed::frame() {
 #endif
 
 	if (m_fractional_training){
-		if (m_training_step < m_fractional_p1){
+		if (m_training_step < m_fractional){
 			apply_no_albedo(true);
 			m_optimizer->only_sdf_training(true);
-		}
-		else if (m_training_step < m_fractional_p2){
-			apply_no_albedo(false);
-			m_optimizer->only_sdf_training(false);
-			m_optimizer->only_reflectance_training(true);
 		}
 		else{
 			apply_no_albedo(false);
 			m_optimizer->only_sdf_training(false);
-			m_optimizer->only_reflectance_training(false);
 		}
 	}
 

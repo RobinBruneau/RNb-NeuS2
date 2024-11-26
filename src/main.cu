@@ -190,10 +190,10 @@ int main(int argc, char** argv) {
     };
 
     // Add the fractional-training parameter
-    ValueFlag<std::string> fractional_training_flag{
+    ValueFlag<int> fractional_training_flag{
             parser,
             "FRACTIONAL_TRAINING",
-            "Two integers for fractional training",
+            "Step for fractional training",
             {"fractional-training"},
     };
 
@@ -299,35 +299,16 @@ int main(int argc, char** argv) {
     if (fractional_training_flag){
 
         if(max_iter_flag){
-            const std::string& input = get(fractional_training_flag);
-            std::istringstream stream(input);
-            std::vector<int> fractional_training;
-            int number;
-
-            char separator;
-            while (stream >> number) {
-                fractional_training.push_back(number);
-                stream >> separator; // Allow skipping a comma or space
-            }
-            if (fractional_training.size() != 2) {
-                tlog::error() << "fractional-training requires exactly two integers.";
-                return 1;
-            }
-            uint32_t param1 = fractional_training[0];
-            uint32_t param2 = fractional_training[1];
-            if (param1 < param2){
-                if (param2 < get(max_iter_flag)){
-                    testbed.apply_fractional_training(param1,param2);
-                }
-                else{
-                    tlog::error() << "Both integers must be lower than max-iter!";
-                    return 1;
-                }
+            uint32_t value_frac = get(fractional_training_flag);
+            
+            if (value_frac < get(max_iter_flag)){
+                testbed.apply_fractional_training(value_frac);
             }
             else{
-                tlog::error() << "1st integer must be lower than the second!";
+                tlog::error() << "The integer must be lower than max-iter!";
                 return 1;
             }
+           
             
         }
         else{

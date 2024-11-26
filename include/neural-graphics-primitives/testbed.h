@@ -318,7 +318,7 @@ public:
 	void set_mask_weight(float weight);
 	void apply_light_opti();
 	void apply_no_albedo(bool activate);
-	void apply_fractional_training(uint32_t frac_p1, uint32_t frac_p2);	
+	void apply_fractional_training(uint32_t frac);	
 	void apply_normalization();
 	void apply_L2();
 	void apply_L2_squared();
@@ -505,8 +505,8 @@ public:
 	bool m_no_albedo = false;
 	
 	bool m_fractional_training = false;
-	uint32_t m_fractional_p1 = 0;
-	uint32_t m_fractional_p2 = 0;
+	uint32_t m_fractional = 0;
+
 
 	bool m_apply_L2 = false;
 	bool m_apply_L2_squared = false;
