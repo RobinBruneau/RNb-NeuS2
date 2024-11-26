@@ -81,6 +81,13 @@ public:
 		m_weights_average.memset(0);
 	}
 
+	void only_sdf_training(bool activate) override {
+		int a=0;
+	}
+	void only_reflectance_training(bool activate) override {
+		int a=0;
+	}
+
 	void step(cudaStream_t stream, float loss_scale, float* weights_full_precision, T* weights, const T* gradients) override {
 		m_nested->step(stream, loss_scale, weights_full_precision, weights, gradients);
 

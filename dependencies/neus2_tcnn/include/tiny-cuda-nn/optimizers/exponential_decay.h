@@ -84,6 +84,13 @@ public:
 		return m_nested->step();
 	}
 
+	void only_sdf_training(bool activate) override {
+		m_nested->only_sdf_training(activate);
+	}
+	void only_reflectance_training(bool activate) override {
+		m_nested->only_reflectance_training(activate);
+	}
+
 	uint32_t n_weights() const override {
 		return m_nested->n_weights();
 	}

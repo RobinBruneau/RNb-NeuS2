@@ -21,7 +21,8 @@
                 "optimize_delta_params": false,
                 "optimize_canonical_params": true,
                 "optimize_params_components": {
-                    "rgb_network": true
+                    "rgb_network": true,
+                    "density_network" : true
                 }
             }
         }

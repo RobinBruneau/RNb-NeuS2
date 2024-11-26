@@ -269,12 +269,22 @@ void Testbed::apply_light_opti() {
     m_light_opti = true;
 }
 
-void Testbed::apply_no_albedo() {
-    m_no_albedo = true;
+void Testbed::apply_no_albedo(bool activate) {
+    m_no_albedo = activate;
+}
+
+void Testbed::apply_fractional_training(uint32_t frac) {
+	m_fractional = frac;
+	m_fractional_training = true;
+
 }
 
 void Testbed::apply_L2() {
     m_apply_L2 = true;
+}
+
+void Testbed::apply_L2_squared() {
+    m_apply_L2_squared = true;
 }
 
 void Testbed::apply_supernormal() {
@@ -1464,6 +1474,7 @@ void Testbed::train_and_render(bool skip_rendering) {
 	}
 
 	if (m_mesh.optimize_mesh) {
+		printf("mesh opti\n");
 		optimise_mesh_step(1);
 	}
 
@@ -1826,6 +1837,17 @@ bool Testbed::frame() {
 		ImGui::EndFrame();
 	}
 #endif
+
+	if (m_fractional_training){
+		if (m_training_step < m_fractional){
+			apply_no_albedo(true);
+			m_optimizer->only_sdf_training(true);
+		}
+		else{
+			apply_no_albedo(false);
+			m_optimizer->only_sdf_training(false);
+		}
+	}
 
 	if (m_training_step >= m_max_iter){
         return false;

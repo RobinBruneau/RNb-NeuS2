@@ -140,6 +140,13 @@ public:
 		return data;
 	}
 
+	void only_sdf_training(bool activate) override {
+		int a=0;
+	}
+	void only_reflectance_training(bool activate) override {
+		int a=0;
+	}
+
 	void deserialize(const json& data) override {
 		m_current_step = data["current_step"];
 		m_learning_rate = data["learning_rate"];

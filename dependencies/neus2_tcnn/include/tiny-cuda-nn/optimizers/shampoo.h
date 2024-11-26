@@ -993,6 +993,12 @@ public:
 	void deserialize(const json& data) override {
 		throw std::runtime_error{"The Shampoo optimizer does not yet support deserialization."};
 	}
+	void only_sdf_training(bool activate) override {
+		int a=0;
+	}
+	void only_reflectance_training(bool activate) override {
+		int a=0;
+	}
 
 private:
 	uint32_t m_n_weights;

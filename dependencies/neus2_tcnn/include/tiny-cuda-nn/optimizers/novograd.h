@@ -171,6 +171,13 @@ public:
 		return m_base_learning_rate;
 	}
 
+	void only_sdf_training(bool activate) override {
+		int a=0;
+	}
+	void only_reflectance_training(bool activate) override {
+		int a=0;
+	}
+
 	void set_learning_rate(float val) override {
 		m_base_learning_rate = val;
 	}

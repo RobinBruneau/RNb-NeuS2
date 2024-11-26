@@ -100,6 +100,13 @@ public:
 		m_tmp.memset(0);
 	}
 
+	void only_sdf_training(bool activate) override {
+		m_nested->only_sdf_training(activate);
+	}
+	void only_reflectance_training(bool activate) override {
+		m_nested->only_reflectance_training(activate);
+	}
+
 	void step(cudaStream_t stream, float loss_scale, float* weights_full_precision, T* weights, const T* gradients) override {
 		m_nested->step(stream, loss_scale, weights_full_precision, weights, gradients);
 
@@ -200,6 +207,7 @@ private:
 
 	GPUMemory<T> m_weights_ema;
 	GPUMemory<float> m_tmp;
+
 };
 
 TCNN_NAMESPACE_END
