@@ -26,6 +26,7 @@ using namespace std;
 using namespace tcnn;
 namespace fs = ::filesystem;
 
+
 int main(int argc, char** argv) {
     ArgumentParser parser{
             "neural graphics primitives\n"
@@ -188,6 +189,14 @@ int main(int argc, char** argv) {
             {"mask-weight"},
     };
 
+    // Add the fractional-training parameter
+    ValueFlag<std::string> fractional_training_flag{
+            parser,
+            "FRACTIONAL_TRAINING",
+            "Two integers for fractional training",
+            {"fractional-training"},
+    };
+
 
 	// Parse command line arguments and react to parsing
 	// errors using exceptions.
@@ -218,33 +227,7 @@ int main(int argc, char** argv) {
         testbed.set_max_iter(get(max_iter_flag));
     }
 
-    if (ltwo_flag){
-        testbed.apply_L2();
-    }
-    if (supernormal_flag){
-        testbed.apply_supernormal();
-    }
-    if (rgbplus_flag){
-        testbed.apply_rgbplus();
-    }
-    if (disable_snap_to_center_flag){
-        testbed.disable_snap_to_center();
-    }
-    if (bce_flag){
-        testbed.apply_bce();
-    }
-    if (relu_flag){
-        testbed.apply_relu();
-    }
-
-    if (opti_lights_flag){
-        testbed.apply_light_opti();
-    }
-
-    if (no_albedo_flag){
-        testbed.apply_no_albedo();
-    }
-
+    
     tlog::info() << "Number of iterations : " << testbed.get_max_iter();
 
     if (scene_flag) {
@@ -287,6 +270,9 @@ int main(int argc, char** argv) {
             tlog::error() << "Network config path " << network_config_path << " does not exist.";
             return 1;
         }
+        else{
+             tlog::success() << "Network config path " << network_config_path << " found!";
+        }
         testbed.reload_network_from_file(network_config_path.str());
         testbed.m_train = !no_train_flag;
     }
@@ -309,6 +295,75 @@ int main(int argc, char** argv) {
     tlog::info() << " " << testbed.m_image.training.snap_to_pixel_centers;
     tlog::info() << " " <<  testbed.m_snap_to_pixel_centers;
 
+
+    if (fractional_training_flag){
+
+        if(max_iter_flag){
+            const std::string& input = get(fractional_training_flag);
+            std::istringstream stream(input);
+            std::vector<int> fractional_training;
+            int number;
+
+            char separator;
+            while (stream >> number) {
+                fractional_training.push_back(number);
+                stream >> separator; // Allow skipping a comma or space
+            }
+            if (fractional_training.size() != 2) {
+                tlog::error() << "fractional-training requires exactly two integers.";
+                return 1;
+            }
+            uint32_t param1 = fractional_training[0];
+            uint32_t param2 = fractional_training[1];
+            if (param1 < param2){
+                if (param2 < get(max_iter_flag)){
+                    testbed.apply_fractional_training(param1,param2);
+                }
+                else{
+                    tlog::error() << "Both integers must be lower than max-iter!";
+                    return 1;
+                }
+            }
+            else{
+                tlog::error() << "1st integer must be lower than the second!";
+                return 1;
+            }
+            
+        }
+        else{
+            tlog::error() << "fractional-training works with max-iter.";
+            return 1; 
+        }
+        
+    }
+
+    if (ltwo_flag){
+        testbed.apply_L2();
+    }
+
+    if (supernormal_flag){
+        testbed.apply_supernormal();
+    }
+    if (rgbplus_flag){
+        testbed.apply_rgbplus();
+    }
+    if (disable_snap_to_center_flag){
+        testbed.disable_snap_to_center();
+    }
+    if (bce_flag){
+        testbed.apply_bce();
+    }
+    if (relu_flag){
+        testbed.apply_relu();
+    }
+
+    if (opti_lights_flag){
+        testbed.apply_light_opti();
+    }
+
+    if (no_albedo_flag){
+        testbed.apply_no_albedo(true);
+    }
 
     
     // Render/training loop

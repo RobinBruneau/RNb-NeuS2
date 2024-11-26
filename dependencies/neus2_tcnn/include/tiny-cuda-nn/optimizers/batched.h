@@ -78,6 +78,13 @@ public:
 		m_averaged_gradients_half.resize(size);
 	}
 
+	void only_sdf_training(bool activate) override {
+		int a=0;
+	}
+	void only_reflectance_training(bool activate) override {
+		int a=0;
+	}
+
 	void step(cudaStream_t stream, float loss_scale, float* weights_full_precision, T* weights, const T* gradients) override {
 		linear_kernel(gradient_update<T>, 0, stream, m_nested->n_weights(), m_current_step % m_batch_size_multiplier == 0, m_batch_size_multiplier, gradients, m_averaged_gradients.data());
 		++m_current_step;

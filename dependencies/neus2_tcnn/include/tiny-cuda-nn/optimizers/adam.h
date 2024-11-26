@@ -78,8 +78,10 @@ __global__ void adam_step(
 	float* __restrict__ first_moments,
 	float* __restrict__ second_moments,
 	uint32_t* __restrict__ param_steps,
-	std::pair<uint32_t, bool>* __restrict__ n_weights_optimize
-) {
+	std::pair<uint32_t, bool>* __restrict__ n_weights_optimize,
+	const bool only_sdf_training,
+	const bool only_reflectance_training) 
+{
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= n_elements) return;
 
@@ -116,47 +118,87 @@ __global__ void adam_step(
 		}
 	}
 
-	for (uint32_t j=0; j<n_components; j++) {
-		if (i >= n_weights_optimize[j].first) {
-			continue;
+	uint32_t final_number;
+	bool found_sdf = false;
+	bool found_reflectance = false;
+	for (int32_t  j=n_components-1; j>=0; j--) {
+		//printf("%d\n",j);
+		if (i < n_weights_optimize[j].first) {
+			if (j==0){
+				//printf("%d\n",i);
+				found_sdf = true;
+				found_reflectance = false;
+			}
+			if (j==2){
+				//printf("%d\n",i);
+				found_sdf = true;
+				found_reflectance = false;
+			}
+			if (j==3){
+				//printf("%d\n",i);
+				found_sdf = true;
+				found_reflectance = false;
+			}
+			if (j==1){
+				found_sdf = false;
+				found_reflectance = true;
+			}
+			else{
+				found_sdf = false;
+			}
 		}
-		if (!n_weights_optimize[j].second) {
-			return;
+	}
+
+	//printf("only_sdf_training: %s AND only_reflectance_training: %s\n", only_sdf_training ? "true" : "false",only_reflectance_training ? "true" : "false");
+
+	bool continuer = true;
+
+	if (found_reflectance){
+		if (only_sdf_training){
+			continuer = false;
 		}
-		break;
+	}
+	else{
+		if (only_reflectance_training){
+			continuer = false;
+		}
 	}
 
-	const float weight_fp = weights_full_precision[i];
 
-	// if (i < n_matrix_weights) {
-	if (is_matrices_param) {
-		// No L2 reg for non-matrix params
-		gradient += l2_reg * weight_fp;
+	if (continuer){
+		const float weight_fp = weights_full_precision[i];
+
+		// if (i < n_matrix_weights) {
+		if (is_matrices_param) {
+			// No L2 reg for non-matrix params
+			gradient += l2_reg * weight_fp;
+		}
+
+		const float gradient_sq = gradient * gradient;
+
+		float first_moment = first_moments[i] = beta1 * first_moments[i] + (1 - beta1) * gradient;
+		const float second_moment = second_moments[i] = beta2 * second_moments[i] + (1 - beta2) * gradient_sq;
+
+		// if (i >= n_matrix_weights) {
+		if (!is_matrices_param) {
+			// Potentially different learning rate for non-matrix params
+			learning_rate *= non_matrix_learning_rate_factor;
+		}
+
+		// Debiasing. Since some parameters might see fewer steps than others, they each need their own step counter.
+		const uint32_t current_step = ++param_steps[i];
+		learning_rate *= sqrtf(1 - powf(beta2, (float)current_step)) / (1 - powf(beta1, (float)current_step));
+
+		// Follow AdaBound paradigm
+		const float effective_learning_rate = fminf(fmaxf(learning_rate / (sqrtf(second_moment) + epsilon), lower_lr_bound), upper_lr_bound);
+
+		const float decayed_weight = weight_decay(relative_weight_decay * learning_rate, absolute_weight_decay * learning_rate, weight_fp);
+		const float new_weight = decayed_weight - effective_learning_rate * first_moment;
+
+		weights_full_precision[i] = new_weight;
+		weights[i] = (T)new_weight;
 	}
-
-	const float gradient_sq = gradient * gradient;
-
-	float first_moment = first_moments[i] = beta1 * first_moments[i] + (1 - beta1) * gradient;
-	const float second_moment = second_moments[i] = beta2 * second_moments[i] + (1 - beta2) * gradient_sq;
-
-	// if (i >= n_matrix_weights) {
-	if (!is_matrices_param) {
-		// Potentially different learning rate for non-matrix params
-		learning_rate *= non_matrix_learning_rate_factor;
-	}
-
-	// Debiasing. Since some parameters might see fewer steps than others, they each need their own step counter.
-	const uint32_t current_step = ++param_steps[i];
-	learning_rate *= sqrtf(1 - powf(beta2, (float)current_step)) / (1 - powf(beta1, (float)current_step));
-
-	// Follow AdaBound paradigm
-	const float effective_learning_rate = fminf(fmaxf(learning_rate / (sqrtf(second_moment) + epsilon), lower_lr_bound), upper_lr_bound);
-
-	const float decayed_weight = weight_decay(relative_weight_decay * learning_rate, absolute_weight_decay * learning_rate, weight_fp);
-	const float new_weight = decayed_weight - effective_learning_rate * first_moment;
-
-	weights_full_precision[i] = new_weight;
-	weights[i] = (T)new_weight;
+	
 }
 
 template <typename T>
@@ -172,6 +214,7 @@ public:
 		for (tcnn::json::iterator it = m_n_weights_components.begin(); it != m_n_weights_components.end(); ++it) {
 			tcnn::json j = it.value()[1];
 			auto component_name = j[0].get<std::string>();
+			std::string target_string = "density_network";
 			if (m_optimize_params_components.contains(component_name)) {
 				m_n_weights_optimize_cpu[i].second = m_optimize_params_components[component_name].get<bool>();
 			}
@@ -265,7 +308,6 @@ public:
 
 	void step(cudaStream_t stream, float loss_scale, float* weights_full_precision, T* weights, const T* gradients) override {
 		++m_current_step;
-
 		update_components_optimize();
 #if COMPONENT_OPTIMIZE_STEP_VERBOSE
 		if (step() % 20 == 0) {
@@ -319,8 +361,17 @@ public:
 			m_first_moments.data(),
 			m_second_moments.data(),
 			m_param_steps.data(),
-			m_n_weights_optimize.data()
+			m_n_weights_optimize.data(),
+			m_only_sdf_training,
+			m_only_reflectance_training
 		);
+	}
+
+	void only_sdf_training(bool activate) override {
+		m_only_sdf_training = activate;
+	}
+	void only_reflectance_training(bool activate) override {
+		m_only_reflectance_training = activate;
 	}
 
 	float learning_rate() const override {
@@ -395,6 +446,7 @@ public:
 		if (params.contains("optimize_delta_params")) {
 			m_optimize_delta_params = params["optimize_delta_params"];
 		}
+
 
 		if (params.contains("optimize_params_components")) {
 			m_optimize_params_components = params["optimize_params_components"];
@@ -473,6 +525,9 @@ private:
 	float m_absolute_weight_decay = 0.0f;
 
 	bool m_adabound = false;
+
+	bool m_only_sdf_training = false;
+	bool m_only_reflectance_training = false;
 
 	bool m_optimize_matrix_params = true;
 	bool m_optimize_non_matrix_params = true;

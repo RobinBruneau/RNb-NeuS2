@@ -254,7 +254,7 @@ __device__ float network_to_pos_gradient(float val, ENerfActivation activation) 
 }
 
 struct LossAndGradient {
-	Eigen::Array4f loss;
+	float loss;
 	Eigen::Array4f gradient;
 
 	__host__ __device__ LossAndGradient operator*(float scalar) {
@@ -275,19 +275,24 @@ inline __device__ Array4f copysign(const Array4f& a, const Array4f& b) {
 	};
 }
 
-inline __device__ LossAndGradient l2_loss(const Array4f& target, const Array4f& prediction) {
-	Array4f difference = prediction - target;
-	return {
-		difference * difference,
-		2.0f * difference
-	};
-}
 
+
+inline __device__ LossAndGradient mse_loss(const Array4f& target, const Array4f& prediction) {
+	Array4f difference = prediction - target;
+	float loss = difference.x() * difference.x() + difference.y() * difference.y() + difference.z() * difference.z() + difference.w() * difference.w();
+    Array4f gradient = 2*difference;
+
+    return {
+        loss,
+        gradient
+    };
+}
 
 inline __device__ LossAndGradient l1_loss(const Array4f& target, const Array4f& prediction) {
 	Array4f difference = prediction - target;
+	Array4f diff_abs = difference.abs();
 	return {
-		difference.abs(),
+		diff_abs.x()+diff_abs.y()+diff_abs.z()+diff_abs.w(),
 		copysign(Array4f::Ones(), difference),
 	};
 }
@@ -1384,7 +1389,7 @@ __global__ void generate_training_samples_nerf_with_global_movement(
 __device__ LossAndGradient loss_and_gradient(const Vector4f& target, const Vector4f& prediction, ELossType loss_type) {
 	switch (loss_type) {
 		case ELossType::L1:          return l1_loss(target, prediction); break;
-		default: case ELossType::L2: return l2_loss(target, prediction); break;
+		default: case ELossType::L2: return mse_loss(target, prediction); break;
 	}
 }
 
@@ -1516,7 +1521,13 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
         // Set albedo with the three values of albedo3f and the fourth as 1 - norm_value
 		if (apply_rgbplus){
-			albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], racine_3 - norm_value;
+			if (apply_L2){
+				albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], sqrtf(3 -  albedo_value3f[0]*albedo_value3f[0] - albedo_value3f[1]*albedo_value3f[1] - albedo_value3f[2]*albedo_value3f[2]);
+			}
+			else{
+				albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], 3 -  albedo_value3f[0] - albedo_value3f[1] - albedo_value3f[2];
+			}
+			
 		}
 		else{
 			albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], 0.0f;
@@ -1612,11 +1623,18 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 			// Set albedo with the three values of albedo3f and the fourth as 1 - norm_value
 			if (apply_rgbplus){
-				albedo << albedo3f[0], albedo3f[1], albedo3f[2], racine_3 - norm_value;
+				if (apply_L2){
+					albedo << albedo3f[0], albedo3f[1], albedo3f[2], sqrtf(3 -  albedo3f[0]*albedo3f[0] - albedo3f[1]*albedo3f[1] - albedo3f[2]*albedo3f[2]);
+				}
+				else{
+					albedo << albedo3f[0], albedo3f[1], albedo3f[2], 3 -  albedo3f[0] - albedo3f[1] - albedo3f[2];
+				}
 			}
 			else{
 				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 0.0f;
 			}
+
+			
 			
 		}
 		 
@@ -1724,11 +1742,16 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	}
 
 	LossAndGradient lg = loss_and_gradient(rgbtarget, rgb_ray, loss_type); // modification
+
+	if (apply_rgbplus){
+		lg.loss /= 2;
+		lg.gradient /= 2;
+	}
+
 	lg.loss *= mask_certainty;
 	lg.gradient *= mask_certainty;
 
 	lg.loss /= img_pdf * xy_pdf;
-
 
 	float mask_gt =(float) (texsamp_normal.w() > 0.99); // 1 should be with color
 	
@@ -1759,7 +1782,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	// to change the weighting of the loss function. So don't divide.
 	// lg.gradient /= img_pdf * xy_pdf;
 
-	float mean_loss = lg.loss.mean();
+	float mean_loss = lg.loss;
 	if (loss_output) {
 		loss_output[i] = mean_loss / (float)n_rays;
 	}
@@ -1839,12 +1862,14 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		}
 		else {
 			albedo3f = network_to_rgb(local_network_output, rgb_activation);
-			// Calculate the 1-norm of albedo3f
-			float norm_value = albedo3f.matrix().norm();
 
-			// Set albedo with the three values of albedo3f and the fourth as 1 - norm_value
 			if (apply_rgbplus){
-				albedo << albedo3f[0], albedo3f[1], albedo3f[2], racine_3 - norm_value;
+				if (apply_L2){
+					albedo << albedo3f[0], albedo3f[1], albedo3f[2], sqrtf(3 -  albedo3f[0]*albedo3f[0] - albedo3f[1]*albedo3f[1] - albedo3f[2]*albedo3f[2]);
+				}
+				else{
+					albedo << albedo3f[0], albedo3f[1], albedo3f[2], 3 -  albedo3f[0] - albedo3f[1] - albedo3f[2];
+				}
 			}
 			else{
 				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 0.0f;
@@ -1906,7 +1931,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 
 		tcnn::vector_t<tcnn::network_precision_t, 16> local_dL_doutput;
 
-		float opti_rgb = 1.0;
+		float opti_rgb = 1.0f;
 		if (apply_no_albedo){
 			opti_rgb = 0.0f;
 		}

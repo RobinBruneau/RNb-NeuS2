@@ -93,6 +93,7 @@ static constexpr const char* RandomModeStr = "Random\0Halton\0Sobol\0Stratified\
 enum class ELossType : int {
 	L2,
 	L1,
+	SquaredL2,
 	Mape,
 	Smape,
 	Huber,

@@ -110,6 +110,13 @@ public:
 		return m_nested->step();
 	}
 
+	void only_sdf_training(bool activate) override {
+		int a=0;
+	}
+	void only_reflectance_training(bool activate) override {
+		int a=0;
+	}
+
 	uint32_t n_weights() const override {
 		return m_nested->n_weights();
 	}

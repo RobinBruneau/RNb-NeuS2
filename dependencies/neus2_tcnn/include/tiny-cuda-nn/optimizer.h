@@ -49,6 +49,8 @@ public:
 	virtual uint32_t step() const = 0;
 	virtual uint32_t n_weights() const = 0;
 	virtual T* custom_weights() const = 0;
+	virtual void only_reflectance_training(bool activate) {int a=0;};
+	virtual void only_sdf_training(bool activate) {int a=0;}; 
 
 	virtual json serialize() const { return {}; }
 	virtual void deserialize(const json& data) { }
