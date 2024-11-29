@@ -273,6 +273,15 @@ void Testbed::apply_no_albedo(bool activate) {
     m_no_albedo = activate;
 }
 
+void Testbed::save_each(uint32_t iteration) {
+    m_save_each = iteration;
+}
+
+void Testbed::add_mesh_save_params(Vector3i res3d, char* filename){
+	m_res = res3d;
+	m_mesh_suffix = filename;
+}
+
 void Testbed::apply_fractional_training(uint32_t frac) {
 	m_fractional = frac;
 	m_fractional_training = true;
@@ -1848,6 +1857,22 @@ bool Testbed::frame() {
 			m_optimizer->only_sdf_training(false);
 		}
 	}
+
+	if (m_save_each > 0){
+		if(m_training_step % m_save_each == 0){
+
+			char obj_name[128] = "";
+
+			if (obj_name[0] == '\0') {
+				snprintf(obj_name, sizeof(obj_name), "%s%d.obj", m_mesh_suffix, m_training_step);
+			}
+
+			printf("%s\n",obj_name);
+			compute_and_save_marching_cubes_mesh(obj_name,m_res,{},0.0f,false);
+		}
+	}
+	
+
 
 	if (m_training_step >= m_max_iter){
         return false;

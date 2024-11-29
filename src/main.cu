@@ -153,6 +153,13 @@ int main(int argc, char** argv) {
             {"width"},
     };
 
+    ValueFlag<uint32_t> save_each_flag{
+            parser,
+            "SAVE_EACH",
+            "Save mesh each X number of iterations",
+            {"save-each"},
+    };
+
     ValueFlag<uint32_t> resolution_flag{
             parser,
             "RESOLUTION",
@@ -346,15 +353,8 @@ int main(int argc, char** argv) {
         testbed.apply_no_albedo(true);
     }
 
-    
-    // Render/training loop
-    while (testbed.frame()) {
-        if (!gui) {
-            if (testbed.m_training_step % 100 == 0){
-                tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
-            // tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val() << " lr=" << testbed.m_optimizer.learning_rate();
-            }
-        }
+    if (save_each_flag){
+        testbed.save_each(get(save_each_flag));
     }
 
     std::string path = get(scene_flag);
@@ -366,14 +366,32 @@ int main(int argc, char** argv) {
         snprintf(obj_filename_buf, sizeof(obj_filename_buf), "%s", (folder_name+"/mesh_"+to_string(testbed.get_max_iter())+"_.obj").c_str());
     }
 
-    if (save_mesh_flag){
-        tlog::info() << "SAVING";
-        Eigen::Vector3i resMesh(512, 512, 512);
-        if (resolution_flag){
-            resMesh[0] = get(resolution_flag);
-            resMesh[1] = get(resolution_flag);
-            resMesh[2] = get(resolution_flag);
+    Eigen::Vector3i resMesh(512, 512, 512);
+    if (resolution_flag){
+        resMesh[0] = get(resolution_flag);
+        resMesh[1] = get(resolution_flag);
+        resMesh[2] = get(resolution_flag);
+    }
+
+    static char objmesh_prefix[128] = "";
+    if (objmesh_prefix[0] == '\0') {
+        snprintf(objmesh_prefix, sizeof(objmesh_prefix), "%s", (folder_name+"/mesh_").c_str());
+    }
+
+    testbed.add_mesh_save_params(resMesh,objmesh_prefix);
+
+    
+    // Render/training loop
+    while (testbed.frame()) {
+        if (!gui) {
+            if (testbed.m_training_step % 100 == 0){
+                tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
+            // tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val() << " lr=" << testbed.m_optimizer.learning_rate();
+            }
         }
+    }
+
+    if (save_mesh_flag){
         testbed.compute_and_save_marching_cubes_mesh(obj_filename_buf,resMesh,{},0.0f,false);
     }
 

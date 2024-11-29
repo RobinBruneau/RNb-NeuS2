@@ -318,6 +318,8 @@ public:
 	void set_mask_weight(float weight);
 	void apply_light_opti();
 	void apply_no_albedo(bool activate);
+	void save_each(uint32_t iteration);
+	void add_mesh_save_params(Eigen::Vector3i res, char* objSuffix);
 	void apply_fractional_training(uint32_t frac);	
 	void apply_normalization();
 	void apply_L2();
@@ -503,6 +505,9 @@ public:
 	bool m_apply_normalization = false;
 	bool m_light_opti = false;
 	bool m_no_albedo = false;
+	uint32_t m_save_each = -1;
+	char* m_mesh_suffix;
+	Eigen::Vector3i m_res;
 	
 	bool m_fractional_training = false;
 	uint32_t m_fractional = 0;
