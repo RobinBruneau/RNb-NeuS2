@@ -4,10 +4,9 @@ import argparse
 import shutil
 import trimesh
 import cv2
-import json
-from pyoctree import pyoctree as ot
 from scipy.interpolate import RegularGridInterpolator
 import tqdm
+import matplotlib.pyplot as plt
 
 def load_image(path):
     image = cv2.imread(path, cv2.IMREAD_UNCHANGED)
@@ -44,15 +43,6 @@ def save_image(image, path, bit_depth=8):
     # Write the image
     cv2.imwrite(path, image, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
-def get_ray(pixel, K, R_c2w, center):
-    pixel = pixel.reshape(-1, 1)
-    pixel = np.concatenate((pixel, np.ones((1, 1))), axis=0)
-    K_inv = np.linalg.inv(K)
-    pixel_c2w = 500*K_inv @ pixel
-    pixel_w2c = R_c2w @ pixel_c2w + center
-    ray = np.concatenate((center.T, pixel_w2c.T), axis=0)
-    return ray
-
 def load_K_Rt_from_P(P):
     out = cv2.decomposeProjectionMatrix(P)
     K = out[0]
@@ -74,11 +64,15 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--folder", type=str, help="Folder path.")
+    parser.add_argument("--mesh_path", type=str, default=None, help="Path to the mesh.")
     args = parser.parse_args()
 
     # Inputs
     folder = args.folder
-    mesh_path = [os.path.join(folder, f) for f in os.listdir(folder) if f.startswith("mesh_") and f.endswith(".obj")][0]
+    if args.mesh_path is not None:
+        mesh_path = args.mesh_path
+    else:
+        mesh_path = [os.path.join(folder, f) for f in os.listdir(folder) if f.startswith("mesh_") and f.endswith(".obj")][0]
     albedo_path = os.path.join(folder, "albedos")
     normal_path = os.path.join(folder, "normals")
     transform_path = os.path.join(folder, "transform.json")
@@ -89,11 +83,10 @@ if __name__ == "__main__":
         folder = folder[:-1]
     exp_name = os.path.basename(folder)
     output_path = os.path.join(folder, "..", exp_name + "-albedoscaled")
-    if os.path.exists(output_path):
-        shutil.rmtree(output_path)
-    os.makedirs(output_path, exist_ok=True)
-    shutil.copyfile(transform_path, os.path.join(output_path, "transform.json"))
-    shutil.copytree(normal_path, os.path.join(output_path, "normals"))
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+        shutil.copyfile(transform_path, os.path.join(output_path, "transform.json"))
+        shutil.copytree(normal_path, os.path.join(output_path, "normals"))
     os.makedirs(os.path.join(output_path, "albedos"), exist_ok=True)
 
     # Load albedos and masks
@@ -130,18 +123,16 @@ if __name__ == "__main__":
     mesh = trimesh.load_mesh(mesh_path)
     vertices = mesh.vertices
     faces = mesh.faces.astype(np.int32)
-    print("Creating octree...")
-    octree = ot.PyOctree(vertices, faces)
 
     # For all cameras, loop
     print("Computing number of samples...")
     sum_masks = np.sum(np.sum(masks, axis=1), axis=1)
-    mean_sum_masks = np.mean(sum_masks)
-    min_sum_masks = np.min(sum_masks)
     n_samples = 2000
+
     print(f"Number of samples per image: {n_samples}")
     ratios = np.zeros((n_views, n_samples, 3, 2), dtype=np.float32)
     intersection_found = np.zeros((n_views, n_samples, 2), dtype=np.bool_)
+
     print("Computing ratios...")
     for cam_id in range(n_views):
 
@@ -176,66 +167,124 @@ if __name__ == "__main__":
         pixels = pixels[ind, :]
         albedo_values = albedo_values[ind, :]
 
-        # For each pixel, find the closest point on the mesh (tqdm)
-        for i, pixel in enumerate(tqdm.tqdm(pixels, desc=f"Camera {cam_id}")):
-            ray = get_ray(pixel, K_array[cam_id], R_c2w_array[cam_id], centers_array[cam_id])
-            ray = ray.astype(np.float32)
+        # Create rays
+        rays_origin = np.tile(current_center.T, (n_samples_good, 1))
+        point_on_rays = (current_R_c2w @ (np.linalg.inv(current_K) @ np.concatenate((pixels, np.ones((n_samples_good, 1))), axis=1).T) + current_center).T
+        rays_direction = point_on_rays - rays_origin
 
-            # Get the intersection point
-            intersection = octree.rayIntersection(ray)
-            if len(intersection) == 0:
-                continue # print(f"No intersection for pixel {i}")
+        # Get the intersection point
+        locations, index_ray, _ = mesh.ray.intersects_location(
+            ray_origins=rays_origin,
+            ray_directions=rays_direction
+        )
+        # locations = array([[-0.28622812,  0.33651689,  0.05616308],
+        #    [ 0.13977279,  0.24709683, -0.09688516],
+        #    [ 0.01342933,  0.24768316, -0.19124962],
+        #    ...,
+        #    [-0.21286387, -0.00275792, -0.17479006],
+        #    [-0.26448901, -0.02001748, -0.15498513],
+        #    [-0.22350254,  0.03773047, -0.18866993]])
+        # index_ray = array([   0,    1,    2, ...,  650, 1604, 1726])
+
+        # Get first intersection point for each ray
+        index_ray = np.unique(index_ray)
+        locations = locations[index_ray, :]
+
+        # Plot intersection points in current camera
+        display_ = False
+        if display_:
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.imshow(albedos[cam_id, :, :, :])
+            plt.scatter(pixels[:, 0], pixels[:, 1], c='r')
+            plt.show()
+
+            # Plot in 3D some vertices and intersection points
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            vertices_selected = vertices[np.random.choice(vertices.shape[0], 1000, replace=False), :]
+            ax.scatter(vertices_selected[:, 0], vertices_selected[:, 1], vertices_selected[:, 2], c='b', s=1)
+            ax.scatter(locations[:, 0], locations[:, 1], locations[:, 2], c='r', s=1)
+            plt.show()
+
+        # Get neighbor camera id
+        right_cam_id = (cam_id + 1) % n_views
+        left_cam_id = (cam_id - 1) % n_views
+        for kk, neigh_cam_id in enumerate([right_cam_id, left_cam_id]):
+
+            # Precompute neighbor camera parameters
+            neighbor_K = K_array[neigh_cam_id] # 3x3
+            neighbor_R_c2w = R_c2w_array[neigh_cam_id] # 3x3
+            neighbor_center = centers_array[neigh_cam_id]
+
+            # Create ray from intersection point to neighbor camera center
+            neighbor_rays_direction = neighbor_center.T - locations
+            neighbor_rays_origin = locations + 1e-6 * neighbor_rays_direction
+            hit = mesh.ray.intersects_any(
+                ray_origins=neighbor_rays_origin,
+                ray_directions=neighbor_rays_direction
+            ) # bool (n_samples_good, )
+
+            # Keep only the intersection points that do not hit the mesh
+            intersection_points = locations[~hit, :]
+            index_ray_kk = index_ray[~hit]
+            assert intersection_points.shape[0] == index_ray_kk.shape[0]
+
+            if display_:
+                # Add those points to the plot
+                fig = plt.figure()
+                ax = fig.add_subplot(111, projection='3d')
+                vertices_selected = vertices[np.random.choice(vertices.shape[0], 1000, replace=False), :]
+                ax.scatter(vertices_selected[:, 0], vertices_selected[:, 1], vertices_selected[:, 2], c='b', s=1)
+                ax.scatter(locations[:, 0], locations[:, 1], locations[:, 2], c='r', s=1)
+                ax.scatter(intersection_points[:, 0], intersection_points[:, 1], intersection_points[:, 2], c='g', s=1)
+                plt.show()
+
+            # Project intersection points to neighbor camera
+            neighbor_R_w2c = neighbor_R_c2w.T
+            intersection_points_in_neighbor_cam = (neighbor_R_w2c @ (intersection_points.T - neighbor_center)) # (3, n_samples_good)
+            intersection_points_in_neighbor_cam = (neighbor_K @ intersection_points_in_neighbor_cam).T # (n_samples_good, 3)
+            intersection_points_in_neighbor_cam /= intersection_points_in_neighbor_cam[:, 2][:, None] # (n_samples_good, 3)
+            intersection_points_in_neighbor_cam = intersection_points_in_neighbor_cam[:, :2] # (n_samples_good, 2)
+
+            # Check if the intersection points are inside the image
+            valid_indices = (
+                (0 <= intersection_points_in_neighbor_cam[:, 1]) & (intersection_points_in_neighbor_cam[:, 1] < h) &
+                (0 <= intersection_points_in_neighbor_cam[:, 0]) & (intersection_points_in_neighbor_cam[:, 0] < w)
+            ) 
+            intersection_points_in_neighbor_cam = intersection_points_in_neighbor_cam[valid_indices, :]
+            index_ray_kk = index_ray_kk[valid_indices]
+            assert intersection_points_in_neighbor_cam.shape[0] == index_ray_kk.shape[0]
+
+            display_ = False
+            if display_:
+                # Plot intersection points in neighbor camera
+                plt.figure()
+                plt.imshow(albedos[neigh_cam_id, :, :, :])
+                plt.scatter(intersection_points_in_neighbor_cam[:, 0], intersection_points_in_neighbor_cam[:, 1], c='r')
+                plt.show()
+
+            # Get albedo values in neighbor image
+            # if 0 <= intersection_points_in_neighbor_cam[0, 0] < h  0 <= intersection_points_in_neighbor_cam[0, 1] < w:
+            # Create interpolation function for albedo values
+            albedo_in_neighbor = albedos[neigh_cam_id, :, :, :].astype(np.float32)
+            rows_inds = np.linspace(0, albedo_in_neighbor.shape[0], albedo_in_neighbor.shape[0])
+            cols_inds = np.linspace(0, albedo_in_neighbor.shape[1], albedo_in_neighbor.shape[1])
+            interpR = RegularGridInterpolator((rows_inds, cols_inds), albedo_in_neighbor[:,:,0])
+            interpG = RegularGridInterpolator((rows_inds, cols_inds), albedo_in_neighbor[:,:,1])
+            interpB = RegularGridInterpolator((rows_inds, cols_inds), albedo_in_neighbor[:,:,2])
             
-            intersection_point = np.array(intersection[0].p, dtype=np.float32).reshape(3, 1)
+            albedo_val = np.array([interpR(intersection_points_in_neighbor_cam), interpG(intersection_points_in_neighbor_cam), interpB(intersection_points_in_neighbor_cam)])
+            albedo_val = albedo_val.T # (-1, 3)
+            assert albedo_val.shape[0] == intersection_points_in_neighbor_cam.shape[0]
+            assert albedo_val.shape[0] == index_ray_kk.shape[0]
 
-            # Get neighbor camera id
-            right_cam_id = (cam_id + 1) % n_views
-            left_cam_id = (cam_id - 1) % n_views
-            for kk, neigh_cam_id in enumerate([right_cam_id, left_cam_id]):
+            # Compute the ratio between the albedo values for all non-zero values
+            zero_indices = np.any(albedo_val == 0, axis=1)
+            index_ray_kk = index_ray_kk[~zero_indices]
 
-                # Precompute neighbor camera parameters
-                neighbor_K = K_array[neigh_cam_id]
-                neighbor_R_c2w = R_c2w_array[neigh_cam_id]
-                neighbor_center = centers_array[neigh_cam_id]
-
-                # Convert intersection point from world to camera space
-                ray_neighbor = np.concatenate((intersection_point.T, neighbor_center.T), axis=0).astype(np.float32)
-
-                # Check if ray intersects any objects in the octree
-                neighbor_intersection = octree.rayIntersection(ray_neighbor)
-                bol_intersection_between_point_and_cam = False # np.any([nb.s for nb in neighbor_intersection] > 0)
-                for nb in neighbor_intersection:
-                    if nb.s > 0:
-                        bol_intersection_between_point_and_cam = True
-                        break
-                if bol_intersection_between_point_and_cam:
-                    continue
-
-                # Convert intersection point from world to camera space
-                neighbor_R_w2c = neighbor_R_c2w.T
-                neighbor_t_w2c = -neighbor_R_w2c @ neighbor_center
-                intersection_in_neighbor = neighbor_R_w2c @ intersection_point + neighbor_t_w2c
-                intersection_in_neighbor = neighbor_K @ intersection_in_neighbor
-                intersection_in_neighbor /= intersection_in_neighbor[2]
-                intersection_in_neighbor = intersection_in_neighbor[:2]
-
-                # Ensure pixel_in_neighbor is in the correct shape for interpolation
-                pixel_in_neighbor = np.array([intersection_in_neighbor[1], intersection_in_neighbor[0]]).reshape(1, 2)
-
-                if 0 <= pixel_in_neighbor[0, 0] < h and 0 <= pixel_in_neighbor[0, 1] < w:
-                    # Create interpolation function for albedo values
-                    albedo_in_neighbor = albedos[neigh_cam_id, :, :, :].astype(np.float32)
-                    rows_inds = np.linspace(0, albedo_in_neighbor.shape[0], albedo_in_neighbor.shape[0])
-                    cols_inds = np.linspace(0, albedo_in_neighbor.shape[1], albedo_in_neighbor.shape[1])
-                    interpR = RegularGridInterpolator((rows_inds, cols_inds), albedo_in_neighbor[:,:,0])
-                    interpG = RegularGridInterpolator((rows_inds, cols_inds), albedo_in_neighbor[:,:,1])
-                    interpB = RegularGridInterpolator((rows_inds, cols_inds), albedo_in_neighbor[:,:,2])
-                    
-                    albedo_val = np.array([interpR(pixel_in_neighbor), interpG(pixel_in_neighbor), interpB(pixel_in_neighbor)])
-
-                    if np.all(albedo_val != 0):
-                        ratios[cam_id, i, :, kk] = albedo_values[i] / albedo_val[:, 0]
-                        intersection_found[cam_id, i, kk] = True
+            ratios[cam_id, index_ray_kk, :, kk] = albedo_values[index_ray_kk, :] / albedo_val[~zero_indices, :]
+            intersection_found[cam_id, index_ray_kk, kk] = True
 
     # Get concatenated ratios
     median_ratios = np.zeros((n_views, 3))
@@ -268,6 +317,9 @@ if __name__ == "__main__":
     # print(f"Mean ratio: {mean_median_ratio_prop}")
     median_ratio_prop_norm = median_ratio_prop / mean_median_ratio_prop
     print(f"Scale ratios to apply to each albedo: {median_ratio_prop_norm}")
+
+    # Save ratios
+    np.save(os.path.join(output_path, "ratios.npy"), median_ratio_prop_norm)
 
     # Load albedo images
     print("Scaling and saving albedos...")
