@@ -1512,7 +1512,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	Array4f albedo_value;
 	Array3f albedo_value3f;
 	if (apply_no_albedo){
-		albedo_value = Array4f(1.0f,1.0f,1.0f,0.0f);
+		albedo_value = Array4f(1.0f,1.0f,1.0f,1.0f);
 	}
 	else {
 		albedo_value3f = linear_to_srgb(exposure_scale * texsamp_albedo.head<3>());
@@ -1522,15 +1522,15 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
         // Set albedo with the three values of albedo3f and the fourth as 1 - norm_value
 		if (apply_rgbplus){
 			if (apply_L2){
-				albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], sqrtf(3 -  albedo_value3f[0]*albedo_value3f[0] - albedo_value3f[1]*albedo_value3f[1] - albedo_value3f[2]*albedo_value3f[2]);
+				albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], sqrtf(max(0.0f,3 -  albedo_value3f[0]*albedo_value3f[0] - albedo_value3f[1]*albedo_value3f[1] - albedo_value3f[2]*albedo_value3f[2]));
 			}
 			else{
-				albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], 3 -  albedo_value3f[0] - albedo_value3f[1] - albedo_value3f[2];
+				albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], 3 -  abs(albedo_value3f[0]) - abs(albedo_value3f[1]) - abs(albedo_value3f[2]);
 			}
 			
 		}
 		else{
-			albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], 0.0f;
+			albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], 1.0f;
 		}
 	}
 
@@ -1614,7 +1614,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		Array4f albedo;
 		Array3f albedo3f;
 		if (apply_no_albedo){
-			albedo = Array4f(1.0f,1.0f,1.0f,0.0f);
+			albedo = Array4f(1.0f,1.0f,1.0f,1.0f);
 		}
 		else {
 			albedo3f = network_to_rgb(local_network_output, rgb_activation);
@@ -1624,14 +1624,14 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 			// Set albedo with the three values of albedo3f and the fourth as 1 - norm_value
 			if (apply_rgbplus){
 				if (apply_L2){
-					albedo << albedo3f[0], albedo3f[1], albedo3f[2], sqrtf(3 -  albedo3f[0]*albedo3f[0] - albedo3f[1]*albedo3f[1] - albedo3f[2]*albedo3f[2]);
+					albedo << albedo3f[0], albedo3f[1], albedo3f[2], sqrtf(max(0.0f,3 -  albedo3f[0]*albedo3f[0] - albedo3f[1]*albedo3f[1] - albedo3f[2]*albedo3f[2]));
 				}
 				else{
-					albedo << albedo3f[0], albedo3f[1], albedo3f[2], 3 -  albedo3f[0] - albedo3f[1] - albedo3f[2];
+					albedo << albedo3f[0], albedo3f[1], albedo3f[2], 3 -  abs(albedo3f[0]) - abs(albedo3f[1]) - abs(albedo3f[2]);
 				}
 			}
 			else{
-				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 0.0f;
+				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 1.0f;
 			}
 
 			
@@ -1858,21 +1858,21 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		Array4f albedo;
 		Array3f albedo3f;
 		if (apply_no_albedo){
-			albedo = Array4f(1.0f,1.0f,1.0f,0.0f);
+			albedo = Array4f(1.0f,1.0f,1.0f,1.0f);
 		}
 		else {
 			albedo3f = network_to_rgb(local_network_output, rgb_activation);
 
 			if (apply_rgbplus){
 				if (apply_L2){
-					albedo << albedo3f[0], albedo3f[1], albedo3f[2], sqrtf(3 -  albedo3f[0]*albedo3f[0] - albedo3f[1]*albedo3f[1] - albedo3f[2]*albedo3f[2]);
+					albedo << albedo3f[0], albedo3f[1], albedo3f[2], sqrtf(max(0.0f,3 -  albedo3f[0]*albedo3f[0] - albedo3f[1]*albedo3f[1] - albedo3f[2]*albedo3f[2]));
 				}
 				else{
-					albedo << albedo3f[0], albedo3f[1], albedo3f[2], 3 -  albedo3f[0] - albedo3f[1] - albedo3f[2];
+					albedo << albedo3f[0], albedo3f[1], albedo3f[2], 3 -  abs(albedo3f[0]) - abs(albedo3f[1]) - abs(albedo3f[2]);
 				}
 			}
 			else{
-				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 0.0f;
+				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 1.0f;
 			}
 			
 		}
@@ -1925,8 +1925,28 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		Matrix<float,3,4> light_albedo = light * albedo_transpose;
 		dloss_dn = weight * light_albedo * lg.gradient.matrix(); // modification : pas sur du tout ! produit matriciel ?
 		
+		Matrix<float,3,4> jac_rgb;
+		jac_rgb.setZero();
+			jac_rgb(0, 0) = 1.0f;
+			jac_rgb(1, 1) = 1.0f;
+			jac_rgb(2, 2) = 1.0f;
 
-		const Array4f dloss_by_drgb = weight * shading * lg.gradient;
+		if(apply_rgbplus){
+			if (apply_L2){
+				jac_rgb(0, 3) = -2*albedo[0]/(albedo[3]+1e-5);
+				jac_rgb(1, 3) = -2*albedo[1]/(albedo[3]+1e-5);
+				jac_rgb(2, 3) = -2*albedo[2]/(albedo[3]+1e-5);
+			}
+			else{
+				jac_rgb(0, 3) = -sign(albedo[0]);
+				jac_rgb(1, 3) = -sign(albedo[1]);
+				jac_rgb(2, 3) = -sign(albedo[2]);
+			}
+			
+		}
+
+
+		const Array3f dloss_by_drgb = weight * shading * jac_rgb * lg.gradient.matrix();
 		
 
 		tcnn::vector_t<tcnn::network_precision_t, 16> local_dL_doutput;
