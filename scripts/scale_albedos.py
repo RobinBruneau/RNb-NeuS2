@@ -83,10 +83,9 @@ if __name__ == "__main__":
         folder = folder[:-1]
     exp_name = os.path.basename(folder)
     output_path = os.path.join(folder, "..", exp_name + "-albedoscaled")
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-        shutil.copyfile(transform_path, os.path.join(output_path, "transform.json"))
-        shutil.copytree(normal_path, os.path.join(output_path, "normals"))
+    os.makedirs(output_path, exist_ok=True)
+    shutil.copyfile(transform_path, os.path.join(output_path, "transform.json"))
+    shutil.copytree(normal_path, os.path.join(output_path, "normals"), dirs_exist_ok=True)
     os.makedirs(os.path.join(output_path, "albedos"), exist_ok=True)
 
     # Load albedos and masks

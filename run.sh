@@ -2,7 +2,7 @@
 
 # Check if folder path is provided as argument
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <folder_path> [--no-albedo | --ltwo | --scale-albedo | --num-iter <num_iter> | --res <resolution> | --disable-snap-to-center | --not-opti-lights | --rgbplus | --snapshot <snapshot_path> | --iter-opti-lights <iter_opti_lights> | --supernormal]"
+    echo "Usage: $0 <folder_path> [--no-albedo | --ltwo | --scale-albedo | --num-iter <num_iter> | --res <resolution> | --disable-snap-to-center | --not-opti-lights | --rgbplus | --snapshot <snapshot_path> | --iter-opti-lights <iter_opti_lights> | --supernormal | --save-each <save_each> ]"
     exit 1
 fi
 
@@ -59,6 +59,10 @@ while [ $# -gt 1 ]; do
         --supernormal)
             flags="$flags --supernormal"
             supernormal=true
+            ;;
+        --save-each)
+            flags="$flags --save-each $3"
+            shift
             ;;
         *)
             echo "Unknown option: $2"
