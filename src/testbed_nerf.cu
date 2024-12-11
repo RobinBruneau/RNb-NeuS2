@@ -1512,7 +1512,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 	Array4f albedo_value;
 	Array3f albedo_value3f;
 	if (apply_no_albedo){
-		albedo_value = Array4f(1.0f,1.0f,1.0f,1.0f);
+		albedo_value = Array4f(1.0f,1.0f,1.0f,0.0f);
 	}
 	else {
 		albedo_value3f = linear_to_srgb(exposure_scale * texsamp_albedo.head<3>());
@@ -1614,7 +1614,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		Array4f albedo;
 		Array3f albedo3f;
 		if (apply_no_albedo){
-			albedo = Array4f(1.0f,1.0f,1.0f,1.0f);
+			albedo = Array4f(1.0f,1.0f,1.0f,0.0f);
 		}
 		else {
 			albedo3f = network_to_rgb(local_network_output, rgb_activation);
@@ -1858,7 +1858,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 		Array4f albedo;
 		Array3f albedo3f;
 		if (apply_no_albedo){
-			albedo = Array4f(1.0f,1.0f,1.0f,1.0f);
+			albedo = Array4f(1.0f,1.0f,1.0f,0.0f);
 		}
 		else {
 			albedo3f = network_to_rgb(local_network_output, rgb_activation);
