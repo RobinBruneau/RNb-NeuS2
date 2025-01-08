@@ -338,6 +338,11 @@ int main(int argc, char** argv) {
     if (disable_snap_to_center_flag){
         testbed.disable_snap_to_center();
     }
+
+    tlog::info() << "Snap to pixel center : " << testbed.m_nerf.training.snap_to_pixel_centers;
+    tlog::info() << " " << testbed.m_image.training.snap_to_pixel_centers;
+    tlog::info() << " " <<  testbed.m_snap_to_pixel_centers;
+    
     if (bce_flag){
         testbed.apply_bce();
     }

@@ -101,6 +101,7 @@ flags=$(echo "$flags" | sed 's/--num-iter [0-9]*//')
 flags=$(echo "$flags" | sed 's/--not-opti-lights//')
 flags=$(echo "$flags" | sed 's/--res [0-9]*//')
 flags=$(echo "$flags" | sed 's/--iter-opti-lights [0-9]*//')
+flags=$(echo "$flags" | sed 's/--supernormal//')
 
 # If --supernormal is provided, run the supernormal 
 if [ "$supernormal" = false ]; then
