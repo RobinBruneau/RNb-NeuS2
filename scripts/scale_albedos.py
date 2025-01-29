@@ -92,8 +92,9 @@ if __name__ == "__main__":
     n_views = len(os.listdir(albedo_path))
     albedos = []
     masks = []
+    list_names = sorted([f for f in os.listdir(albedo_path) if f.endswith(".png")])
     for i in range(n_views):
-        name = f"{i:03d}.png"
+        name = list_names[i]
         albedo = load_image(os.path.join(albedo_path, name))
         mask = albedo[:, :, 3]
         albedo = albedo[:, :, :3]
@@ -331,7 +332,7 @@ if __name__ == "__main__":
         albedo_to_save = np.concatenate((albedo, mask[:, :, np.newaxis]), axis=-1)
 
         # Save albedo
-        output_im_path = os.path.join(output_path, "albedos", f"{ii:03d}.png")
+        output_im_path = os.path.join(output_path, "albedos", list_names[ii])
         save_image(albedo_to_save, output_im_path, bit_depth=16)
         print(f"Saved {output_im_path}")
     
