@@ -126,6 +126,46 @@ struct NerfDataset {
 
 	void set_training_image_albedo(int frame_idx, const Eigen::Vector2i& image_resolution, const void* pixels, const void* depth_pixels, float depth_scale, bool image_data_on_gpu, EImageDataType image_type, EDepthDataType depth_type, float sharpen_amount = 0.f, bool white_transparent = false, bool black_transparent = false, uint32_t mask_color = 0, const Ray *rays = nullptr);
 
+	void free_memory(){
+		// Free GPU memory for normal dataset
+		for (auto& ray_memory : raymemory_normal) {
+			cudaFree(ray_memory.data());
+		}
+		for (auto& pixel_memory : pixelmemory_normal) {
+			cudaFree(pixel_memory.data());
+		}
+		for (auto& depth_memory : depthmemory_normal) {
+			cudaFree(depth_memory.data());
+		}
+	
+		// Free GPU memory for albedo dataset
+		for (auto& ray_memory : raymemory_albedo) {
+			cudaFree(ray_memory.data());
+		}
+		for (auto& pixel_memory : pixelmemory_albedo) {
+			cudaFree(pixel_memory.data());
+		}
+		for (auto& depth_memory : depthmemory_albedo) {
+			cudaFree(depth_memory.data());
+		}
+	
+		// Free GPU memory for other resources
+		cudaFree(sharpness_data.data());
+		cudaFree(envmap_data.data());
+	
+		// Optionally, you can clear vectors
+		raymemory_normal.clear();
+		pixelmemory_normal.clear();
+		depthmemory_normal.clear();
+	
+		raymemory_albedo.clear();
+		pixelmemory_albedo.clear();
+		depthmemory_albedo.clear();
+	
+		metadata_normal.clear();
+		metadata_albedo.clear();
+		xforms.clear();
+	}
 
 	Eigen::Vector3f nerf_direction_to_ngp(const Eigen::Vector3f& nerf_dir) {
 		Eigen::Vector3f result = nerf_dir;

@@ -1530,7 +1530,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 			
 		}
 		else{
-			albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], 1.0f;
+			albedo_value << albedo_value3f[0], albedo_value3f[1], albedo_value3f[2], 0.0f;
 		}
 	}
 
@@ -1631,7 +1631,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 				}
 			}
 			else{
-				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 1.0f;
+				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 0.0f;
 			}
 
 			
@@ -1872,7 +1872,7 @@ __global__ void compute_loss_kernel_train_nerf_with_global_movement(
 				}
 			}
 			else{
-				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 1.0f;
+				albedo << albedo3f[0], albedo3f[1], albedo3f[2], 0.0f;
 			}
 			
 		}
