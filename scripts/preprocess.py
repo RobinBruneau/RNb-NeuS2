@@ -146,7 +146,7 @@ def NeuS_to_NeuS2(inputFolder, outputFolder, mask_certainty_name):
             msk = msk[:,:,0]
         if msk.dtype == np.uint8:
             msk = np.where(msk > 125, 1.0, 0.0)
-        else :
+        else:
             msk = np.where(msk > 30000, 1.0, 0.0)
 
         if n_bits == 8:
@@ -160,7 +160,7 @@ def NeuS_to_NeuS2(inputFolder, outputFolder, mask_certainty_name):
 
         if msk_certainty.dtype == np.uint8:
             msk_certainty = np.where(msk_certainty > 125, 1.0, 0.0)
-        else :
+        else:
             msk_certainty = np.where(msk_certainty > 30000, 1.0, 0.0)
         
         if n_bits == 8:
