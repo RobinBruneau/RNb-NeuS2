@@ -380,6 +380,42 @@ void Testbed::compute_and_save_marching_cubes_mesh(const char* filename, Vector3
 	}
 }
 
+void Testbed::free_unnecessary_gpu_memory() {
+
+
+	 // Free GPUMemory objects
+	 m_nerf.training.dataset.free_memory(); // Assuming `dataset` is a pointer to GPU memory (if applicable)
+	 cudaFree(m_nerf.training.error_map.data.data());
+	 cudaFree(m_nerf.training.error_map.cdf_x_cond_y.data());
+	 cudaFree(m_nerf.training.error_map.cdf_y.data());
+	 cudaFree(m_nerf.training.error_map.cdf_img.data());
+	 cudaFree(m_nerf.training.metadata_normal_gpu.data());
+	 cudaFree(m_nerf.training.metadata_albedo_gpu.data());
+	 cudaFree(m_nerf.training.transforms_gpu.data());
+	 cudaFree(m_nerf.training.cam_pos_gradient_gpu.data());
+	 cudaFree(m_nerf.training.cam_rot_gradient_gpu.data());
+	 cudaFree(m_nerf.training.cam_exposure_gpu.data());
+	 cudaFree(m_nerf.training.cam_exposure_gradient_gpu.data());
+	 cudaFree(m_nerf.training.cam_focal_length_gradient_gpu.data());
+	 cudaFree(m_nerf.training.extra_dims_gpu.data());
+	 cudaFree(m_nerf.training.extra_dims_gradient_gpu.data());
+	 cudaFree(m_nerf.training.sharpness_grid.data());
+ 
+	 // Free Counters
+	 cudaFree(m_nerf.training.counters_rgb.numsteps_counter.data());
+	 cudaFree(m_nerf.training.counters_rgb.numsteps_counter_compacted.data());
+	 cudaFree(m_nerf.training.counters_rgb.loss.data());
+	 cudaFree(m_nerf.training.counters_rgb.ek_loss.data());
+	 cudaFree(m_nerf.training.counters_rgb.mask_loss.data());
+ 
+	 // You can also clear vectors or other non-GPU allocations
+	 m_nerf.training.transforms.clear();
+	 m_nerf.training.cam_pos_gradient.clear();
+	 m_nerf.training.cam_rot_gradient.clear();
+	 m_nerf.training.cam_exposure_gradient.clear();
+ 
+}
+
 Eigen::Vector3i Testbed::compute_and_save_png_slices(const char* filename, int res, BoundingBox aabb, float thresh, float density_range, bool flip_y_and_z_axes) {
 	if (aabb.is_empty()) {
 		aabb = (m_testbed_mode == ETestbedMode::Nerf) ? m_render_aabb : m_aabb;
