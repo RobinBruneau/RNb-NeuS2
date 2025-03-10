@@ -196,7 +196,7 @@ if __name__ == "__main__":
         albedo_values = albedo_values[index_ray, :]
 
         # Plot two figures, one with the albedo and the pixels and the other with the vertices
-        display_ = True
+        display_ = False
         if display_:
 
             selection = np.random.choice(pixels.shape[0], 10, replace=False)
@@ -282,7 +282,7 @@ if __name__ == "__main__":
             albedo_values_valid = albedo_values_no_hit[valid_indices, :]
             assert intersection_points_in_neighbor_cam.shape[0] == index_ray_kk.shape[0]
 
-            display_ = True
+            display_ = False
             if display_:
 
                 selection = np.random.choice(pixels_valid.shape[0], 10, replace=False)
@@ -331,7 +331,7 @@ if __name__ == "__main__":
             intersection_points_in_neighbor_cam = intersection_points_in_neighbor_cam[~zero_indices, :]
             albedo_values_valid = albedo_values_valid[~zero_indices, :]
 
-            display_ = True
+            display_ = False
             if display_:
 
                 #
