@@ -97,6 +97,9 @@ if __name__ == "__main__":
     # fix the seed
     np.random.seed(0)
 
+    # fix the seed
+    np.random.seed(0)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--folder", type=str, help="Folder path.")
     parser.add_argument("--mesh_path", type=str, default=None, help="Path to the mesh.")
@@ -237,13 +240,19 @@ if __name__ == "__main__":
             selection = np.random.choice(pixels.shape[0], 10, replace=False)
             colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k', 'w', 'orange', 'purple']
 
+
+            selection = np.random.choice(pixels.shape[0], 10, replace=False)
+            colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k', 'w', 'orange', 'purple']
+
             import matplotlib.pyplot as plt
+            plt.figure(1)
             plt.figure(1)
             plt.imshow(albedos[cam_id, :, :, :])
             for jj, ind_jj in enumerate(selection):
                 plt.scatter(pixels[ind_jj, 0], pixels[ind_jj, 1], c=colors[jj % 10])
 
             # Plot in 3D some vertices and intersection points
+            fig = plt.figure(2)
             fig = plt.figure(2)
             ax = fig.add_subplot(111, projection='3d')
             vertices_selected = vertices[np.random.choice(vertices.shape[0], 1000, replace=False), :]
@@ -277,10 +286,24 @@ if __name__ == "__main__":
             index_ray_kk = index_ray[~hit]
             pixels_no_hit = pixels[~hit, :]
             albedo_values_no_hit = albedo_values[~hit, :]
+            pixels_no_hit = pixels[~hit, :]
+            albedo_values_no_hit = albedo_values[~hit, :]
             assert intersection_points.shape[0] == index_ray_kk.shape[0]
 
             display_ = False
             if display_:
+
+                selection = np.random.choice(pixels_no_hit.shape[0], 10, replace=False)
+                colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k', 'w', 'orange', 'purple']
+
+                import matplotlib.pyplot as plt
+                plt.figure(1)
+                plt.imshow(albedos[cam_id, :, :, :])
+                for jj, ind in enumerate(selection):
+                    plt.scatter(pixels_no_hit[ind, 0], pixels_no_hit[ind, 1], c=colors[jj % 10])
+
+                # Plot in 3D some vertices and intersection points
+                fig = plt.figure(2)
 
                 selection = np.random.choice(pixels_no_hit.shape[0], 10, replace=False)
                 colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k', 'w', 'orange', 'purple']
@@ -299,6 +322,9 @@ if __name__ == "__main__":
                 for jj, ind in enumerate(selection):
                     ax.scatter(intersection_points[ind, 0], intersection_points[ind, 1], intersection_points[ind, 2], c=colors[jj % 10], s=50)
 
+                for jj, ind in enumerate(selection):
+                    ax.scatter(intersection_points[ind, 0], intersection_points[ind, 1], intersection_points[ind, 2], c=colors[jj % 10], s=50)
+
                 plt.show()
 
             # Project intersection points to neighbor camera
@@ -307,14 +333,19 @@ if __name__ == "__main__":
             intersection_points_in_neighbor_cam = (neighbor_K @ intersection_points_in_neighbor_cam).T # (n_samples_good, 3)
             intersection_points_in_neighbor_cam /= intersection_points_in_neighbor_cam[:, 2][:, None] # (n_samples_good, 3)
             intersection_points_in_neighbor_cam = intersection_points_in_neighbor_cam[:, :2] # (n_samples_good, 2) (xy-coordinates)
+            intersection_points_in_neighbor_cam = intersection_points_in_neighbor_cam[:, :2] # (n_samples_good, 2) (xy-coordinates)
 
             # Check if the intersection points are inside the image
             valid_indices = (
                 (0 <= intersection_points_in_neighbor_cam[:, 1]) & (intersection_points_in_neighbor_cam[:, 1] < h-1) &
                 (0 <= intersection_points_in_neighbor_cam[:, 0]) & (intersection_points_in_neighbor_cam[:, 0] < w-1)
+                (0 <= intersection_points_in_neighbor_cam[:, 1]) & (intersection_points_in_neighbor_cam[:, 1] < h-1) &
+                (0 <= intersection_points_in_neighbor_cam[:, 0]) & (intersection_points_in_neighbor_cam[:, 0] < w-1)
             ) 
             intersection_points_in_neighbor_cam = intersection_points_in_neighbor_cam[valid_indices, :]
             index_ray_kk = index_ray_kk[valid_indices]
+            pixels_valid = pixels_no_hit[valid_indices, :]
+            albedo_values_valid = albedo_values_no_hit[valid_indices, :]
             pixels_valid = pixels_no_hit[valid_indices, :]
             albedo_values_valid = albedo_values_no_hit[valid_indices, :]
             assert intersection_points_in_neighbor_cam.shape[0] == index_ray_kk.shape[0]
@@ -344,9 +375,21 @@ if __name__ == "__main__":
             albedo_in_neighbor = albedos[neigh_cam_id, :, :, :].astype(np.float32)
             rows_inds = np.arange(0, albedo_in_neighbor.shape[0], 1)
             cols_inds = np.arange(0, albedo_in_neighbor.shape[1], 1)
+            rows_inds = np.arange(0, albedo_in_neighbor.shape[0], 1)
+            cols_inds = np.arange(0, albedo_in_neighbor.shape[1], 1)
             interpR = RegularGridInterpolator((rows_inds, cols_inds), albedo_in_neighbor[:,:,0])
             interpG = RegularGridInterpolator((rows_inds, cols_inds), albedo_in_neighbor[:,:,1])
             interpB = RegularGridInterpolator((rows_inds, cols_inds), albedo_in_neighbor[:,:,2])
+
+            # Interpolate for each channel
+            intersection_points_in_neighbor_cam_yx = np.concatenate((intersection_points_in_neighbor_cam[:, 1][:, None], intersection_points_in_neighbor_cam[:, 0][:, None]), axis=1)
+            albedo_R = interpR(intersection_points_in_neighbor_cam_yx)
+            albedo_G = interpG(intersection_points_in_neighbor_cam_yx)
+            albedo_B = interpB(intersection_points_in_neighbor_cam_yx)
+
+            # Stack the interpolated values to get the final albedo values (n,3)
+            albedo_val = np.stack([albedo_R, albedo_G, albedo_B], axis=1)
+
 
             # Interpolate for each channel
             intersection_points_in_neighbor_cam_yx = np.concatenate((intersection_points_in_neighbor_cam[:, 1][:, None], intersection_points_in_neighbor_cam[:, 0][:, None]), axis=1)
