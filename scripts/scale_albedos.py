@@ -373,7 +373,7 @@ if __name__ == "__main__":
             intersection_points_in_neighbor_cam = intersection_points_in_neighbor_cam[~zero_indices, :]
             albedo_values_valid = albedo_values_valid[~zero_indices, :]
 
-            display_ = True
+            display_ = False
             if display_:
 
                 #
