@@ -1,9 +1,10 @@
 NVIDIA License
 
-Copyright (c) 2022-2023, NVIDIA Corporation & affiliates. All rights reserved.
+Copyright (c) 2025-2026, NVIDIA Corporation & affiliates. All rights reserved.
 
 
-NVIDIA Source Code License for instant neural graphics primitives
+NVIDIA Source Code License for "Multi-View Surface Reconstruction
+Using Normal and Reflectance Cues" due to the use of NeuS2/Instant-NGP backbone.
 
 
 =======================================================================
