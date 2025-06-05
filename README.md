@@ -9,9 +9,7 @@
 
 <a href="https://arxiv.org/abs/2312.01215"><img src='https://img.shields.io/badge/arXiv-RNb--NeuS-red' alt='Paper PDF'></a>
 
-<a href='https://robinbruneau.github.io/publications/rnb_neus.html'><img src='https://img.shields.io/badge/Project_Page-RNb--Neus-green' alt='Project Page'></a>
-
-<a href='https://robinbruneau.github.io/publications/rnb_neus2.html'><img src='https://img.shields.io/badge/Project_Page-RNb--Neus2-orange' alt='Project Page'></a>
+<a href='https://robinbruneau.github.io/publications/rnb_neus2.html'><img src='https://img.shields.io/badge/Project_Page-RNb--Neus2-green' alt='Project Page'></a>
 </div>
 
 Welcome to the official CUDA implementation of **RNb-NeuS: Reflectance and Normal-based Multi-View 3D Reconstruction**.
