@@ -1,5 +1,6 @@
 <div align="center">
-<h1>RNb-NeuS2</h1>
+<h1>RNb-NeuS2: Multi-View Surface Reconstruction <br>
+Using Normal and Reflectance Cues</h1>
 
 [**Robin Bruneau**](https://robinbruneau.github.io/)<sup><span>&#9733;</span></sup> · [**Baptiste Brument**](https://bbrument.github.io/)<sup><span>&#9733;</span></sup> · [**Yvain Quéau**](https://yqueau.github.io/)
 <br>
@@ -7,12 +8,10 @@
 
 <span>&#9733;</span> corresponding author
 
-<a href="https://arxiv.org/abs/2312.01215"><img src='https://img.shields.io/badge/arXiv-RNb--NeuS-red' alt='Paper PDF'></a>
+<a href='https://arxiv.org/abs/2506.04115'><img src='https://img.shields.io/badge/arXiv-RNb--NeuS-red' alt='Paper PDF'></a>
 
 <a href='https://robinbruneau.github.io/publications/rnb_neus2.html'><img src='https://img.shields.io/badge/Project_Page-RNb--Neus2-green' alt='Project Page'></a>
 </div>
-
-Welcome to the official CUDA implementation of **RNb-NeuS: Reflectance and Normal-based Multi-View 3D Reconstruction**.
 
 ## Table of Contents
 
