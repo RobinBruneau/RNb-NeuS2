@@ -263,7 +263,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--folder', type=str, required=True)  # Parse the argument
     parser.add_argument('--exp_name', type=str, required=False, default="RNb-NeuS2")
-    parser.add_argument('--mask_certainty_name', type=str, required=False, default="mask_normal_uncertainty")
+    parser.add_argument('--mask_certainty_name', type=str, required=False, default="mask")
     args = parser.parse_args()
 
     folder = args.folder
