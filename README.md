@@ -1,26 +1,20 @@
-# RNb-NeuS2
+<div align="center">
+<h1>RNb-NeuS2: Multi-View Surface Reconstruction <br>
+Using Normal and Reflectance Cues</h1>
 
-Welcome to the official CUDA implementation of **RNb-NeuS: Reflectance and Normal-based Multi-View 3D Reconstruction**.
+[**Robin Bruneau**](https://robinbruneau.github.io/)<sup><span>&#9733;</span></sup> · [**Baptiste Brument**](https://bbrument.github.io/)<sup><span>&#9733;</span></sup> · [**Yvain Quéau**](https://yqueau.github.io/)
+<br>
+[**Jean Mélou**](https://www.irit.fr/~Jean.Melou/) · [**François Lauze**](https://loutchoa.github.io/) · [**Jean-Denis Durou**](https://www.irit.fr/~Jean-Denis.Durou/) · [**Lilian Calvet**](https://scholar.google.com/citations?user=6JewdrMAAAAJ&hl=en)
 
-## Authors
+<span>&#9733;</span> corresponding author
 
-[Robin Bruneau](https://robinbruneau.github.io/),  
-[Baptiste Brument](https://bbrument.github.io/),  
-[Yvain Quéau](https://sites.google.com/view/yvainqueau),  
-[Jean Mélou](https://www.irit.fr/~Jean.Melou/),  
-[François Lauze](https://loutchoa.github.io/),  
-[Jean-Denis Durou](https://www.irit.fr/~Jean-Denis.Durou/),  
-[Lilian Calvet](https://scholar.google.com/citations?user=6JewdrMAAAAJ&hl=en)
+<a href='https://arxiv.org/abs/2506.04115'><img src='https://img.shields.io/badge/arXiv-RNb--NeuS2-red' alt='Paper PDF' height="30"></a>
 
-### Resources
-
-- [Project Page](https://robinbruneau.github.io/publications/rnb_neus.html)
-- [Paper](https://arxiv.org/abs/2312.01215)
-
+<a href='https://robinbruneau.github.io/publications/rnb_neus2.html'><img src='https://img.shields.io/badge/Project_Page-RNb--Neus2-green' alt='Project Page' height="30"></a>
+</div>
 
 ## Table of Contents
 
-- [Gallery](#gallery)
 - [Installation](#installation)
 - [Training](#training)
 - [Data](#data)
@@ -52,7 +46,6 @@ Ensure you have Python and the following libraries installed:
 - Glob
 - Shutil
 - PyOctree
-- Scipy
 
 ## Data Convention
 
@@ -125,8 +118,8 @@ Note: The provided DiLiGenT-MV dataset already has scaled reflectance maps in th
 - [RNb-NeuS](https://robinbruneau.github.io/publications/rnb_neus.html)
 
 ```bibtex
-@inproceedings{Brument23,
-    title={RNb-Neus: Reflectance and normal Based reconstruction with NeuS},
+@inproceedings{Brument24,
+    title={RNb-NeuS: Reflectance and Normal-based Multi-View 3D Reconstruction},
     author={Baptiste Brument and Robin Bruneau and Yvain Quéau and Jean Mélou and François Lauze and Jean-Denis Durou and Lilian Calvet},
     booktitle={IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
     year={2024}
