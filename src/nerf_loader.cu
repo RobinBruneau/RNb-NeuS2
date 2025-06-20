@@ -556,6 +556,9 @@ NerfDataset load_nerf(const std::vector<filesystem::path>& jsonpaths, float shar
 			size_t i_img = i;
 			auto& frame = json["frames"][i];
 
+			tlog::success() << "Debug 1";
+
+
 			// LES MATRICES DE R/T POUR CHAQUES VUES
 
 			nlohmann::json& jsonmatrix_start = frame.contains("transform_matrix_start") ? frame["transform_matrix_start"] : frame["transform_matrix"];
@@ -570,7 +573,6 @@ NerfDataset load_nerf(const std::vector<filesystem::path>& jsonpaths, float shar
 
 			result.xforms[i_img].start = result.nerf_matrix_to_ngp(result.xforms[i_img].start);
 			result.xforms[i_img].end = result.nerf_matrix_to_ngp(result.xforms[i_img].end);
-
 
 			if (json.contains("n2w")) {
 				for (int m = 0; m < 3; ++m) {

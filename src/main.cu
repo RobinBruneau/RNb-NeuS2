@@ -132,6 +132,13 @@ int main(int argc, char** argv) {
             {"no-train"},
     };
 
+    Flag free_memory_flag{
+        parser,
+        "FREE-MEMORY",
+        "Free images from GPU memory",
+        {"free-memory"},
+};
+
     ValueFlag<string> scene_flag{
             parser,
             "SCENE",
@@ -338,6 +345,11 @@ int main(int argc, char** argv) {
     if (disable_snap_to_center_flag){
         testbed.disable_snap_to_center();
     }
+
+    tlog::info() << "Snap to pixel center : " << testbed.m_nerf.training.snap_to_pixel_centers;
+    tlog::info() << " " << testbed.m_image.training.snap_to_pixel_centers;
+    tlog::info() << " " <<  testbed.m_snap_to_pixel_centers;
+    
     if (bce_flag){
         testbed.apply_bce();
     }
@@ -356,6 +368,8 @@ int main(int argc, char** argv) {
     if (save_each_flag){
         testbed.save_each(get(save_each_flag));
     }
+
+    
 
     std::string path = get(scene_flag);
     size_t found = path.find_last_of("/\\");
@@ -382,16 +396,22 @@ int main(int argc, char** argv) {
 
     
     // Render/training loop
-    while (testbed.frame()) {
-        if (!gui) {
-            if (testbed.m_training_step % 100 == 0){
-                tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
-            // tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val() << " lr=" << testbed.m_optimizer.learning_rate();
+    if (!no_train_flag){
+        while (testbed.frame()) {
+            if (!gui) {
+                if (testbed.m_training_step % 100 == 0){
+                    tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
+                // tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val() << " lr=" << testbed.m_optimizer.learning_rate();
+                }
             }
         }
     }
 
     if (save_mesh_flag){
+        if (free_memory_flag){
+            testbed.free_unnecessary_gpu_memory();
+            std::this_thread::sleep_for(std::chrono::seconds(10));
+        }
         testbed.compute_and_save_marching_cubes_mesh(obj_filename_buf,resMesh,{},0.0f,false);
     }
 

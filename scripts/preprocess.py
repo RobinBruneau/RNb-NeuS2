@@ -125,20 +125,34 @@ def NeuS_to_NeuS2(inputFolder, outputFolder, mask_certainty_name):
         msk_certainty_path = join(base_msk_certainty_dir, msk_certainty_name)
 
         img_normal = cv2.imread(img_normal_path, -1)[:, :, :3]
+        if img_normal.dtype == np.uint8:
+            n_bits = 8
+        elif img_normal.dtype == np.uint16:
+            n_bits = 16
+        else:
+            raise ValueError("Invalid image type")
+        
         if albedo_folder_exist :
             img_albedo = cv2.imread(img_albedo_path,-1)[:,:,:3]
         else :
-            img_albedo = (np.ones_like(img_normal)*(2**16-1)).astype(np.uint16)
+
+            if n_bits == 8:
+                img_albedo = (np.ones_like(img_normal, dtype=float)*(2**8-1)).astype(np.uint8)
+            elif n_bits == 16:
+                img_albedo = (np.ones_like(img_normal, dtype=float)*(2**16-1)).astype(np.uint16)
 
         msk = cv2.imread(msk_path, -1)
         if len(msk.shape) > 2 :
             msk = msk[:,:,0]
         if msk.dtype == np.uint8:
             msk = np.where(msk > 125, 1.0, 0.0)
-        else :
+        else:
             msk = np.where(msk > 30000, 1.0, 0.0)
 
-        msk = (msk*(2**16-1)).astype(np.uint16)
+        if n_bits == 8:
+            msk = (msk*(2**8-1)).astype(np.uint8)
+        elif n_bits == 16:
+            msk = (msk*(2**16-1)).astype(np.uint16)
 
         msk_certainty = cv2.imread(msk_certainty_path, -1)
         if len(msk_certainty.shape) > 2:
@@ -146,15 +160,19 @@ def NeuS_to_NeuS2(inputFolder, outputFolder, mask_certainty_name):
 
         if msk_certainty.dtype == np.uint8:
             msk_certainty = np.where(msk_certainty > 125, 1.0, 0.0)
-        else :
+        else:
             msk_certainty = np.where(msk_certainty > 30000, 1.0, 0.0)
-        msk_certainty = (msk_certainty * (2 ** 16 - 1)).astype(np.uint16)
+        
+        if n_bits == 8:
+            msk_certainty = (msk_certainty * (2 ** 8 - 1)).astype(np.uint8)
+        elif n_bits == 16:
+            msk_certainty = (msk_certainty * (2 ** 16 - 1)).astype(np.uint16)
 
 
-        if img_albedo.dtype == np.uint8 :
-            img_albedo = (img_albedo/255*(2**16-1)).astype(np.uint16)
-        if img_normal.dtype == np.uint8 :
-            img_normal = (img_normal/255*(2**16-1)).astype(np.uint16)
+        # if img_albedo.dtype == np.uint8 :
+        #     img_albedo = (img_albedo/255*(2**16-1)).astype(np.uint16)
+        # if img_normal.dtype == np.uint8 :
+        #     img_normal = (img_normal/255*(2**16-1)).astype(np.uint16)
 
         image_albedo = np.concatenate([img_albedo, msk_certainty[:, :, np.newaxis]], axis=-1)
         H, W = image_albedo.shape[0], image_albedo.shape[1]
@@ -245,7 +263,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--folder', type=str, required=True)  # Parse the argument
     parser.add_argument('--exp_name', type=str, required=False, default="RNb-NeuS2")
-    parser.add_argument('--mask_certainty_name', type=str, required=False, default="mask_normal_uncertainty")
+    parser.add_argument('--mask_certainty_name', type=str, required=False, default="mask")
     args = parser.parse_args()
 
     folder = args.folder

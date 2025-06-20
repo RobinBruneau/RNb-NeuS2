@@ -101,13 +101,14 @@ flags=$(echo "$flags" | sed 's/--num-iter [0-9]*//')
 flags=$(echo "$flags" | sed 's/--not-opti-lights//')
 flags=$(echo "$flags" | sed 's/--res [0-9]*//')
 flags=$(echo "$flags" | sed 's/--iter-opti-lights [0-9]*//')
+flags=$(echo "$flags" | sed 's/--supernormal//')
 
 # If --supernormal is provided, run the supernormal 
 if [ "$supernormal" = false ]; then
 
     # Execute the commands with the defined variables
-    echo "./build/testbed --scene ${case}/ --maxiter ${iter_opti_lights} --save-snapshot --mask-weight 1.0 --no-gui $flags"
-    ./build/testbed --scene "${case}/" --maxiter "${iter_opti_lights}" --save-snapshot --mask-weight 1.0 --no-gui $flags
+    echo "./build/testbed --scene ${case}/ --maxiter ${iter_opti_lights} --save-snapshot --mask-weight 1.0 --no-gui --free-memory $flags"
+    ./build/testbed --scene "${case}/" --maxiter "${iter_opti_lights}" --save-snapshot --mask-weight 1.0 --no-gui --free-memory $flags
 
     # Remove the --snapshot flag from flags
     echo "$flags"
@@ -115,20 +116,20 @@ if [ "$supernormal" = false ]; then
     echo "$flags"
 
     if [ "$not_opti_lights" = true ]; then
-        echo "./build/testbed --scene ${case}/ --maxiter ${num_iter} --save-snapshot --mask-weight 1.0 --no-gui --snapshot ${case}/snapshot_${iter_opti_lights}.msgpack --save-mesh --resolution ${resolution} $flags"
-        ./build/testbed --scene "${case}/" --maxiter "${num_iter}" --save-snapshot --mask-weight 1.0 --no-gui --snapshot "${case}/snapshot_${iter_opti_lights}.msgpack" --save-mesh --resolution "${resolution}" $flags
+        echo "./build/testbed --scene ${case}/ --maxiter ${num_iter} --save-snapshot --mask-weight 1.0 --no-gui --snapshot ${case}/snapshot_${iter_opti_lights}.msgpack --save-mesh --resolution ${resolution} --free-memory $flags"
+        ./build/testbed --scene "${case}/" --maxiter "${num_iter}" --save-snapshot --mask-weight 1.0 --no-gui --snapshot "${case}/snapshot_${iter_opti_lights}.msgpack" --save-mesh --resolution "${resolution}" --free-memory $flags
         exit 0
     fi
 
-    echo "./build/testbed --scene ${case}/ --maxiter ${num_iter} --save-snapshot --mask-weight 1.0 --no-gui --snapshot ${case}/snapshot_${iter_opti_lights}.msgpack --save-mesh --resolution ${resolution} --opti-lights $flags"
-    ./build/testbed --scene "${case}/" --maxiter "${num_iter}" --save-snapshot --mask-weight 1.0 --no-gui --snapshot "${case}/snapshot_${iter_opti_lights}.msgpack" --save-mesh --resolution "${resolution}" --opti-lights $flags
+    echo "./build/testbed --scene ${case}/ --maxiter ${num_iter} --save-snapshot --mask-weight 1.0 --no-gui --snapshot ${case}/snapshot_${iter_opti_lights}.msgpack --save-mesh --resolution ${resolution} --opti-lights --free-memory $flags"
+    ./build/testbed --scene "${case}/" --maxiter "${num_iter}" --save-snapshot --mask-weight 1.0 --no-gui --snapshot "${case}/snapshot_${iter_opti_lights}.msgpack" --save-mesh --resolution "${resolution}" --opti-lights --free-memory $flags
     exit 0
 
 elif [ "$supernormal" = true ]; then
 
     # Execute the commands with the defined variables
-    echo "./build/testbed --scene ${case}/ --maxiter ${num_iter} --save-snapshot --save-mesh --mask-weight 1.0 --no-gui --resolution ${resolution} --supernormal $flags"
-    ./build/testbed --scene "${case}/" --maxiter "${num_iter}" --save-snapshot --save-mesh --mask-weight 1.0 --no-gui --resolution ${resolution} --supernormal $flags
+    echo "./build/testbed --scene ${case}/ --maxiter ${num_iter} --save-snapshot --save-mesh --mask-weight 1.0 --no-gui --resolution ${resolution} --supernormal --free-memory $flags"
+    ./build/testbed --scene "${case}/" --maxiter "${num_iter}" --save-snapshot --save-mesh --mask-weight 1.0 --no-gui --resolution ${resolution} --supernormal --free-memory $flags
     exit 0
 
 fi
