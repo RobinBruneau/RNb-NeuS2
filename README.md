@@ -73,7 +73,8 @@ Organize your data in the `./data/` folder following this structure:
 
 ## Data
 
-We provide the [DiLiGenT-MV](https://drive.google.com/file/d/1TEBM6Dd7IwjRqJX0p8JwT9hLmy_vA5nU/view?usp=drive_link) dataset with normals and reflectance maps estimated using [SDM-UniPS](https://github.com/satoshi-ikehata/SDM-UniPS-CVPR2023/). Reflectance maps were scaled over all views, and uncertainty masks were generated from 100 normal estimations (see the paper for details).
+We provide the [DiLiGenT-MV, LUCES-MV and Skoltech3D](https://drive.google.com/drive/folders/1TbOrB38klLpG41bXzI7B1A01qsbEbz9h?usp=sharing) datasets with normals and reflectance maps estimated using [SDM-UniPS](https://github.com/satoshi-ikehata/SDM-UniPS-CVPR2023/) and [Uni-MS-PS](https://github.com/Clement-Hardy/Uni-MS-PS). This link contains also the cleaned resulting meshs and groundtruths.
+
 
 ## Training
 
