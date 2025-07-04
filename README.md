@@ -94,7 +94,7 @@ python script/preprocess.py --folder ./data/<FOLDER>/ --exp_name <EXP_NAME>
 ```bash
 ./run.sh ./data/<FOLDER>/<EXP_NAME> --no-albedo
 ```
-#### Subcase like Supernormal
+#### The SuperNormal sub-case
 ```bash
 ./run.sh ./data/<FOLDER>/<EXP_NAME> --no-albedo --supernormal
 ```
