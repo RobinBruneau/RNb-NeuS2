@@ -17,9 +17,8 @@ Using Normal and Reflectance Cues</h1>
 ## Table of Contents
 
 - [Installation](#installation)
-- [Training](#training)
 - [Data](#data)
-- [Data Convention](#data-convention)
+- [Training](#training)
 - [Acknowledgements & Citation](#acknowledgements--citation)
 
 ## Installation
@@ -38,12 +37,18 @@ cmake . -B build
 cmake --build build --config RelWithDebInfo -j 
 ```
 
-Install the python requirements for the preprocess:
+Environment for the preprocess and the albedo scaling:
 ```bash
+conda create -n rnb2 python=3.10 
+conda activate rnb2
 pip install -r requirements.txt
 ```
 
-## Data Convention
+## Data
+
+We provide the [DiLiGenT-MV, LUCES-MV and Skoltech3D](https://drive.google.com/drive/folders/1TbOrB38klLpG41bXzI7B1A01qsbEbz9h?usp=sharing) datasets with normals and reflectance maps estimated using [SDM-UniPS](https://github.com/satoshi-ikehata/SDM-UniPS-CVPR2023/) and [Uni-MS-PS](https://github.com/Clement-Hardy/Uni-MS-PS). This link contains also the cleaned resulting meshs and groundtruths.
+
+### Data Convention
 
 Organize your data in the `./data/` folder following this structure:
 ```plaintext
@@ -67,9 +72,6 @@ Organize your data in the `./data/` folder following this structure:
     cameras.npz
 ```
 
-## Data
-
-We provide the [DiLiGenT-MV, LUCES-MV and Skoltech3D](https://drive.google.com/drive/folders/1TbOrB38klLpG41bXzI7B1A01qsbEbz9h?usp=sharing) datasets with normals and reflectance maps estimated using [SDM-UniPS](https://github.com/satoshi-ikehata/SDM-UniPS-CVPR2023/) and [Uni-MS-PS](https://github.com/Clement-Hardy/Uni-MS-PS). This link contains also the cleaned resulting meshs and groundtruths.
 
 
 ## Training
@@ -86,6 +88,7 @@ python script/preprocess.py --folder ./data/<FOLDER>/ --exp_name <EXP_NAME>
 ```bash
 ./run.sh ./data/<FOLDER>/<EXP_NAME>
 ```
+Results will be stored in `./data/<FOLDER>/<EXP_NAME>/`.</br>
 #### Change the loss to L1
 ```bash
 ./run.sh ./data/<FOLDER>/<EXP_NAME> --lone
@@ -107,7 +110,7 @@ For reflectance maps with varying scale factors, use the `--scale-albedo` flag t
 ```
 Results will be stored in `./data/<FOLDER>/<EXP_NAME>-albedoscaled/`.
 
-Note: The provided datasets already have scaled reflectance maps in the `albedo` folder.
+Note: You need to use this option in order to reproduce the results of our paper.
 
 #### Other parameters to play with:
 ```plaintext
@@ -116,8 +119,7 @@ Note: The provided datasets already have scaled reflectance maps in the `albedo`
 --no-opti-lights        # Disable the optimal triplet of lights per pixel
 --no-rgbplus            # Disable the correction the reflectance singularity
 ```
-
-Results will be stored in `./data/<FOLDER>/<EXP_NAME>/`.</br>
+The option ```--no-opti-lights``` will use 3 fixed lights at 60° per camera instead of 3 lights per pixels.</br>
 You can also directly work with the `./build/testbed` command to do your own optimisation using the following options:
 
 ```plaintext
@@ -143,14 +145,14 @@ You can also directly work with the `./build/testbed` command to do your own opt
 
 ```bibtex
 @misc{Bruneau25,
-    title={Multi-view Surface Reconstruction Using Normal and Reflectance Cues},
+    title={{Multi-view Surface Reconstruction Using Normal and Reflectance Cues}},
     author={Robin Bruneau and Baptiste Brument and Yvain Quéau and Jean Mélou and François Bernard Lauze and Jean-Denis
     Durou and Lilian Calvet},
     year={2025},
     eprint={2506.04115},
     archivePrefix={arXiv},
     primaryClass={cs.CV},
-    url={https://arxiv.org/abs/2506.04115},
+    url={https://arxiv.org/abs/2506.04115%7D,
 }
 ```
 
@@ -159,9 +161,9 @@ You can also directly work with the `./build/testbed` command to do your own opt
 
 ```bibtex
 @inproceedings{Brument24,
-    title={RNb-NeuS: Reflectance and Normal-based Multi-View 3D Reconstruction},
+    title={{RNb-NeuS: Reflectance and Normal-based Multi-View 3D Reconstruction}},
     author={Baptiste Brument and Robin Bruneau and Yvain Quéau and Jean Mélou and François Lauze and Jean-Denis Durou and Lilian Calvet},
-    booktitle={IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+    booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
     year={2024}
 }
 ```

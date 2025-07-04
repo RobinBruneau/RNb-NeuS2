@@ -98,9 +98,7 @@ if [ "$supernormal" = false ]; then
     ./build/testbed --scene "${case}/" --maxiter "${iter_opti_lights}" --save-snapshot --mask-weight 1.0 --no-gui  $flags
 
     # Remove the --snapshot flag from flags
-    echo "$flags"
     flags=$(echo "$flags" | sed 's/--snapshot [^ ]*//')
-    echo "$flags"
 
     if [ "$no_opti_lights" = true ]; then
         echo "./build/testbed --scene ${case}/ --maxiter ${num_iter} --save-snapshot --mask-weight 1.0 --no-gui --snapshot ${case}/snapshot_${iter_opti_lights}.msgpack --save-mesh --resolution ${resolution}  $flags"
