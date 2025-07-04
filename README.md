@@ -24,7 +24,7 @@ Using Normal and Reflectance Cues</h1>
 
 ## Installation
 
-Follow the [Instant-NGP](https://github.com/NVlabs/instant-ngp#building-instant-ngp-windows--linux) instructions for requirements and compilation. [NeuS2](https://github.com/19reborn/NeuS2) installation steps are similar.
+Follow the [Instant-NGP](https://github.com/NVlabs/instant-ngp#building-instant-ngp-windows--linux) instructions for requirements and compilation. Our installation steps are similar.
 
 Clone the repository and its submodules:
 ```bash
