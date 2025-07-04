@@ -38,7 +38,7 @@ cmake . -B build
 cmake --build build --config RelWithDebInfo -j 
 ```
 
-Install the python requirements for the preprocess
+Install the python requirements for the preprocess:
 ```bash
 pip install -r requirements.txt
 ```
