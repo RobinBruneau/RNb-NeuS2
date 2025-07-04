@@ -366,7 +366,6 @@ NerfDataset load_nerf(const std::vector<filesystem::path>& jsonpaths, float shar
 	std::atomic<int> n_loaded{0};
 	BoundingBox cam_aabb;
 
-	tlog::success() << "Before loop";
 	for (size_t i = 0; i < jsons.size(); ++i) {
 		auto& json = jsons[i];
 
@@ -555,8 +554,6 @@ NerfDataset load_nerf(const std::vector<filesystem::path>& jsonpaths, float shar
 		if (json.contains("frames") && json["frames"].is_array()) pool.parallelForAsync<size_t>(0, json["frames"].size(), [&progress, &n_loaded, &result, &images_normal, &images_albedo, &json, basepath, image_idx, info, rolling_shutter, principal_point, camera_distortion, part_after_underscore, fix_premult, enable_depth_loading, enable_ray_loading](size_t i) {
 			size_t i_img = i;
 			auto& frame = json["frames"][i];
-
-			tlog::success() << "Debug 1";
 
 
 			// LES MATRICES DE R/T POUR CHAQUES VUES

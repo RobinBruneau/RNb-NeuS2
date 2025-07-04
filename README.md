@@ -2,15 +2,16 @@
 <h1>RNb-NeuS2: Multi-View Surface Reconstruction <br>
 Using Normal and Reflectance Cues</h1>
 
-[**Robin Bruneau**](https://robinbruneau.github.io/)<sup><span>&#9733;</span></sup> · [**Baptiste Brument**](https://bbrument.github.io/)<sup><span>&#9733;</span></sup> · [**Yvain Quéau**](https://yqueau.github.io/)
+[**Robin Bruneau**](https://robinbruneau.github.io/)<sup><span>&#9733;</span></sup> · [**Baptiste Brument**](https://bbrument.github.io/)<sup><span>&#9733;</span></sup>
 <br>
-[**Jean Mélou**](https://www.irit.fr/~Jean.Melou/) · [**François Lauze**](https://loutchoa.github.io/) · [**Jean-Denis Durou**](https://www.irit.fr/~Jean-Denis.Durou/) · [**Lilian Calvet**](https://scholar.google.com/citations?user=6JewdrMAAAAJ&hl=en)
+[**Yvain Quéau**](https://yqueau.github.io/) . [**Jean Mélou**](https://www.irit.fr/~Jean.Melou/) · [**François Lauze**](https://loutchoa.github.io/) · [**Jean-Denis Durou**](https://www.irit.fr/~Jean-Denis.Durou/) · [**Lilian Calvet**](https://scholar.google.com/citations?user=6JewdrMAAAAJ&hl=en)
 
-<span>&#9733;</span> corresponding author
+<span>&#9733;</span> corresponding authors
 
-<a href='https://arxiv.org/abs/2506.04115'><img src='https://img.shields.io/badge/arXiv-RNb--NeuS2-red' alt='Paper PDF' height="30"></a>
-
-<a href='https://robinbruneau.github.io/publications/rnb_neus2.html'><img src='https://img.shields.io/badge/Project_Page-RNb--Neus2-green' alt='Project Page' height="30"></a>
+<div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
+    <a href='https://arxiv.org/abs/2506.04115'><img src='https://img.shields.io/badge/arXiv-RNb--NeuS2-red' alt='Paper PDF' height="30"></a>
+    <a href='https://robinbruneau.github.io/publications/rnb_neus2.html'><img src='https://img.shields.io/badge/Project_Page-RNb--Neus2-green' alt='Project Page' height="30"></a>
+</div>
 </div>
 
 ## Table of Contents
@@ -37,15 +38,10 @@ cmake . -B build
 cmake --build build --config RelWithDebInfo -j 
 ```
 
-Ensure you have Python and the following libraries installed:
-- Numpy
-- Scipy
-- Argparse
-- Json
-- Cv2
-- Glob
-- Shutil
-- PyOctree
+Install the python requirements for the preprocess
+```bash
+pip install -r requirements.txt
+```
 
 ## Data Convention
 
@@ -86,24 +82,23 @@ python script/preprocess.py --folder ./data/<FOLDER>/ --exp_name <EXP_NAME>
 
 ### Run Optimization
 
+#### Our baseline
 ```bash
 ./run.sh ./data/<FOLDER>/<EXP_NAME>
 ```
-
-Results will be stored in `./data/<FOLDER>/<EXP_NAME>/`. Modify the `./build/testbed` command in the `run.sh` with the following options:
-
-```plaintext
---scene FOLDER          # Path to your data
---maxiter INT           # Number of iterations
---mask-weight FLOAT     # Weight of the mask loss
---save-mesh             # Extract the mesh at the end
---save-snapshot         # Save the neural weights
---no-albedo             # Train only on normals
---resolution INT        # Resolution for marching cube (default 512)
---no-gui                # Run optimization without GUI
+#### Change the loss to L1
+```bash
+./run.sh ./data/<FOLDER>/<EXP_NAME> --lone
 ```
-
-### Run Optimization with Scaled Reflectance Maps
+#### Only train using the normals
+```bash
+./run.sh ./data/<FOLDER>/<EXP_NAME> --no-albedo
+```
+#### Subcase like Supernormal
+```bash
+./run.sh ./data/<FOLDER>/<EXP_NAME> --no-albedo --supernormal
+```
+#### Run Optimization with Scaled Reflectance Maps
 
 For reflectance maps with varying scale factors, use the `--scale-albedo` flag that generates a mesh without reflectance maps first, then uses this mesh to scale the reflectance maps (pyoctree and scipy are needed in a python environment). Finally, it generates a mesh using the scaled reflectance maps. 
 
@@ -112,7 +107,34 @@ For reflectance maps with varying scale factors, use the `--scale-albedo` flag t
 ```
 Results will be stored in `./data/<FOLDER>/<EXP_NAME>-albedoscaled/`.
 
-Note: The provided DiLiGenT-MV dataset already has scaled reflectance maps in the `albedo` folder.
+Note: The provided datasets already have scaled reflectance maps in the `albedo` folder.
+
+#### Other parameters to play with:
+```plaintext
+--maxiter INT           # Number of iterations
+--resolution INT        # Resolution for marching cube (default 1024, change to 512 if memory issues occur)
+--no-opti-lights        # Disable the optimal triplet of lights per pixel
+--no-rgbplus            # Disable the correction the reflectance singularity
+```
+
+Results will be stored in `./data/<FOLDER>/<EXP_NAME>/`.</br>
+You can also directly work with the `./build/testbed` command to do your own optimisation using the following options:
+
+```plaintext
+--scene FOLDER          # Path to your data
+--maxiter INT           # Number of iterations
+--mask-weight FLOAT     # Weight of the mask loss
+--save-mesh             # Extract the mesh at the end
+--save-snapshot         # Save the neural weights
+--no-albedo             # Train only on normals
+--lone                  # Apply L1 loss (L2 default)
+--resolution INT        # Resolution for marching cube (default 1024, change to 512 if memory issues occur)
+--no-gui                # Run optimization without GUI
+--supernormal           # Apply the canonical lights (similar to the Supernormal paper)
+--opti-lights           # Apply the optimal triplet of lights per pixel
+--no-rgbplus            # Disable the correction the reflectance singularity
+```
+
 
 ## Acknowledgements & Citation
 

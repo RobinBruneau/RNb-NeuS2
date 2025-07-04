@@ -41,10 +41,10 @@ int main(int argc, char** argv) {
             {'h', "help"},
     };
 
-	Flag ltwo_flag{
+	Flag lone_flag{
             parser,
-            "L_TWO",
-            "Activate l_two between colors !",
+            "L_ONE",
+            "Activate l_one between colors !",
             {"ltwo"},
     };
 
@@ -55,11 +55,11 @@ int main(int argc, char** argv) {
             {"supernormal"},
     };
 
-    Flag rgbplus_flag{
+    Flag no_rgbplus_flag{
             parser,
-            "RGB_PLUS",
-            "Activate rgb normalisation",
-            {"rgbplus"},
+            "NO_RGB_PLUS",
+            "Deactivate rgb normalisation",
+            {"no-rgbplus"},
     };
 
     Flag disable_snap_to_center_flag{
@@ -305,9 +305,6 @@ int main(int argc, char** argv) {
     }
     
     
-    tlog::info() << "Snap to pixel center : " << testbed.m_nerf.training.snap_to_pixel_centers;
-    tlog::info() << " " << testbed.m_image.training.snap_to_pixel_centers;
-    tlog::info() << " " <<  testbed.m_snap_to_pixel_centers;
 
 
     if (fractional_training_flag){
@@ -332,24 +329,21 @@ int main(int argc, char** argv) {
         
     }
 
-    if (ltwo_flag){
+    if (! lone_flag){
         testbed.apply_L2();
     }
 
     if (supernormal_flag){
         testbed.apply_supernormal();
     }
-    if (rgbplus_flag){
+    if (! no_rgbplus_flag){
         testbed.apply_rgbplus();
     }
     if (disable_snap_to_center_flag){
         testbed.disable_snap_to_center();
     }
 
-    tlog::info() << "Snap to pixel center : " << testbed.m_nerf.training.snap_to_pixel_centers;
-    tlog::info() << " " << testbed.m_image.training.snap_to_pixel_centers;
-    tlog::info() << " " <<  testbed.m_snap_to_pixel_centers;
-    
+
     if (bce_flag){
         testbed.apply_bce();
     }
