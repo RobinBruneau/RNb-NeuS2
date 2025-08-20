@@ -72,7 +72,7 @@ Organize your data in the `./data/` folder following this structure:
     cameras.npz
 ```
 
-
+cameras.npz follows the data format in [IDR](https://github.com/lioryariv/idr/blob/main/DATA_CONVENTION.md), where world_mat_xx denotes the world to image projection matrix, and scale_mat_xx denotes the normalization matrix.
 
 ## Training
 
