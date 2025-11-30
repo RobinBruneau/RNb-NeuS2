@@ -16,6 +16,11 @@
 #pragma once
 
 #include <tinylogger/tinylogger.h>
+#include <filesystem/path.h>
+
+// Forward declaration for accessing executable directory
+namespace filesystem { class path; }
+filesystem::path get_executable_dir_global();
 
 // Eigen uses __device__ __host__ on a bunch of defaulted constructors.
 // This doesn't actually cause unwanted behavior, but does cause NVCC

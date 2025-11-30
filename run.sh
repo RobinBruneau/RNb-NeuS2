@@ -22,7 +22,7 @@ while [ $# -gt 1 ]; do
             flags="$flags --no-albedo"
             ;;
         --lone)
-            flags="$flags --ltwo"
+            flags="$flags --lone"
             ;;
         --scale-albedo)
             scale_albedo=true
@@ -101,13 +101,13 @@ if [ "$supernormal" = false ]; then
     flags=$(echo "$flags" | sed 's/--snapshot [^ ]*//')
 
     if [ "$no_opti_lights" = true ]; then
-        echo "./build/testbed --scene ${case}/ --maxiter ${num_iter} --save-snapshot --mask-weight 1.0 --no-gui --snapshot ${case}/snapshot_${iter_opti_lights}.msgpack --save-mesh --resolution ${resolution}  $flags"
-        ./build/testbed --scene "${case}/" --maxiter "${num_iter}" --save-snapshot --mask-weight 1.0 --no-gui --snapshot "${case}/snapshot_${iter_opti_lights}.msgpack" --save-mesh --resolution "${resolution}"  $flags
+        echo "./build/testbed --scene ${case}/ --maxiter ${num_iter} --save-snapshot --mask-weight 1.0 --no-gui --snapshot ${case}/output/snapshot_${iter_opti_lights}.msgpack --save-mesh --resolution ${resolution}  $flags"
+        ./build/testbed --scene "${case}/" --maxiter "${num_iter}" --save-snapshot --mask-weight 1.0 --no-gui --snapshot "${case}/output/snapshot_${iter_opti_lights}.msgpack" --save-mesh --resolution "${resolution}"  $flags
         exit 0
     fi
 
-    echo "./build/testbed --scene ${case}/ --maxiter ${num_iter} --save-snapshot --mask-weight 1.0 --no-gui --snapshot ${case}/snapshot_${iter_opti_lights}.msgpack --save-mesh --resolution ${resolution} --opti-lights  $flags"
-    ./build/testbed --scene "${case}/" --maxiter "${num_iter}" --save-snapshot --mask-weight 1.0 --no-gui --snapshot "${case}/snapshot_${iter_opti_lights}.msgpack" --save-mesh --resolution "${resolution}" --opti-lights  $flags
+    echo "./build/testbed --scene ${case}/ --maxiter ${num_iter} --save-snapshot --mask-weight 1.0 --no-gui --snapshot ${case}/output/snapshot_${iter_opti_lights}.msgpack --save-mesh --resolution ${resolution} --opti-lights  $flags"
+    ./build/testbed --scene "${case}/" --maxiter "${num_iter}" --save-snapshot --mask-weight 1.0 --no-gui --snapshot "${case}/output/snapshot_${iter_opti_lights}.msgpack" --save-mesh --resolution "${resolution}" --opti-lights  $flags
     exit 0
 
 elif [ "$supernormal" = true ]; then

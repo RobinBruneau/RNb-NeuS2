@@ -1,12 +1,12 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
- *
- * NVIDIA CORPORATION and its licensors retain all intellectual property
- * and proprietary rights in and to this software, related documentation
- * and any modifications thereto.  Any use, reproduction, disclosure or
- * distribution of this software and related documentation without an express
- * license agreement from NVIDIA CORPORATION is strictly prohibited.
- */
+* Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
+*
+* NVIDIA CORPORATION and its licensors retain all intellectual property
+* and proprietary rights in and to this software, related documentation
+* and any modifications thereto.  Any use, reproduction, disclosure or
+* distribution of this software and related documentation without an express
+* license agreement from NVIDIA CORPORATION is strictly prohibited.
+*/
 
 /** @file   main.cu
  *  @author Thomas Müller, NVIDIA
@@ -20,14 +20,60 @@
 
 #include <filesystem/path.h>
 
+#ifdef __linux__
+#include <unistd.h>
+#include <linux/limits.h>
+#elif _WIN32
+#include <windows.h>
+#endif
+
 using namespace args;
 using namespace ngp;
 using namespace std;
 using namespace tcnn;
 namespace fs = ::filesystem;
 
+// Global variable to store the executable directory path
+static fs::path g_executable_dir;
+
+// Function to set the executable directory (called once at startup)
+void set_executable_dir(const fs::path& dir) {
+    g_executable_dir = dir;
+}
+
+// Function to get the executable directory (can be called from anywhere)
+fs::path get_executable_dir_global() {
+    return g_executable_dir;
+}
+
+// Function to get the directory containing the executable
+fs::path get_executable_dir() {
+#ifdef __linux__
+    char result[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+    if (count != -1) {
+        result[count] = '\0';
+        fs::path exe_path(result);
+        return exe_path.parent_path();
+    }
+#elif _WIN32
+    char result[MAX_PATH];
+    DWORD count = GetModuleFileNameA(NULL, result, MAX_PATH);
+    if (count != 0) {
+        fs::path exe_path(result);
+        return exe_path.parent_path();
+    }
+#endif
+    // Fallback to current directory if we can't determine executable path
+    tlog::warning() << "Could not determine executable directory, using current directory";
+    return fs::path(".");
+}
+
 
 int main(int argc, char** argv) {
+    // Set the executable directory for use throughout the application
+    set_executable_dir(get_executable_dir());
+
     ArgumentParser parser{
             "neural graphics primitives\n"
             "version " NGP_VERSION,
@@ -41,11 +87,11 @@ int main(int argc, char** argv) {
             {'h', "help"},
     };
 
-	Flag lone_flag{
+    Flag lone_flag{
             parser,
             "L_ONE",
             "Activate l_one between colors !",
-            {"ltwo"},
+            {"lone"},
     };
 
     Flag supernormal_flag{
@@ -104,14 +150,14 @@ int main(int argc, char** argv) {
             {"save-mesh"},
     };
 
-	Flag save_snapshot_flag{
+    Flag save_snapshot_flag{
             parser,
             "SAVE_SNAPSHOT",
             "Save as a snapshot when it's done.",
             {"save-snapshot"},
     };
 
-	Flag opti_lights_flag{
+    Flag opti_lights_flag{
             parser,
             "OPTI-LIGHTS",
             "Use optimal lights per pixels",
@@ -196,7 +242,7 @@ int main(int argc, char** argv) {
             {'v', "version"},
     };
 
-	ValueFlag<float> mask_weight_flag{
+    ValueFlag<float> mask_weight_flag{
             parser,
             "MASK_WEIGHT",
             "Mask weight.",
@@ -212,29 +258,29 @@ int main(int argc, char** argv) {
     };
 
 
-	// Parse command line arguments and react to parsing
-	// errors using exceptions.
-	try {
-		parser.ParseCLI(argc, argv);
-	} catch (const Help&) {
-		cout << parser;
-		return 0;
-	} catch (const ParseError& e) {
-		cerr << e.what() << endl;
-		cerr << parser;
-		return -1;
-	} catch (const ValidationError& e) {
-		cerr << e.what() << endl;
-		cerr << parser;
-		return -2;
-	}
+    // Parse command line arguments and react to parsing
+    // errors using exceptions.
+    try {
+        parser.ParseCLI(argc, argv);
+    } catch (const Help&) {
+        cout << parser;
+        return 0;
+    } catch (const ParseError& e) {
+        cerr << e.what() << endl;
+        cerr << parser;
+        return -1;
+    } catch (const ValidationError& e) {
+        cerr << e.what() << endl;
+        cerr << parser;
+        return -2;
+    }
 
-	if (version_flag) {
-		tlog::none() << "neural graphics primitives version " NGP_VERSION;
-		return 0;
-	}
+    if (version_flag) {
+        tlog::none() << "neural graphics primitives version " NGP_VERSION;
+        return 0;
+    }
 
-	ETestbedMode mode = ETestbedMode::Nerf;
+    ETestbedMode mode = ETestbedMode::Nerf;
 
     Testbed testbed{mode};
     if (max_iter_flag){
@@ -268,7 +314,7 @@ int main(int argc, char** argv) {
         printf("*******Loaded snapshot succeed!\n");
     } else {
         // Otherwise, load the network config and prepare for training
-        fs::path network_config_path = fs::path{"configs"}/mode_str;
+        fs::path network_config_path = get_executable_dir().parent_path() / "configs" / mode_str;
         if (network_config_flag) {
             auto network_config_str = get(network_config_flag);
             if ((network_config_path/network_config_str).exists()) {
@@ -285,7 +331,7 @@ int main(int argc, char** argv) {
             return 1;
         }
         else{
-             tlog::success() << "Network config path " << network_config_path << " found!";
+            tlog::success() << "Network config path " << network_config_path << " found!";
         }
         testbed.reload_network_from_file(network_config_path.str());
         testbed.m_train = !no_train_flag;
@@ -319,7 +365,7 @@ int main(int argc, char** argv) {
                 tlog::error() << "The integer must be lower than max-iter!";
                 return 1;
             }
-           
+        
             
         }
         else{
@@ -363,15 +409,19 @@ int main(int argc, char** argv) {
         testbed.save_each(get(save_each_flag));
     }
 
-    
+    // Get the scene path and construct output path
+    std::string scene_path_str = get(scene_flag);
+    // Remove trailing slash if present
+    if (scene_path_str.back() == '/') {
+        scene_path_str.pop_back();
+    }
+    fs::path output_path = fs::path(scene_path_str) / "output";
 
-    std::string path = get(scene_flag);
-    size_t found = path.find_last_of("/\\");
-    std::string folder_name = path.substr(0,found);
-
-    static char obj_filename_buf[128] = "";
+    // Build mesh filename in output folder
+    static char obj_filename_buf[256] = "";
     if (obj_filename_buf[0] == '\0') {
-        snprintf(obj_filename_buf, sizeof(obj_filename_buf), "%s", (folder_name+"/mesh_"+to_string(testbed.get_max_iter())+"_.obj").c_str());
+        snprintf(obj_filename_buf, sizeof(obj_filename_buf), "%s/mesh_%d.obj", 
+                output_path.str().c_str(), testbed.get_max_iter());
     }
 
     Eigen::Vector3i resMesh(512, 512, 512);
@@ -381,9 +431,10 @@ int main(int argc, char** argv) {
         resMesh[2] = get(resolution_flag);
     }
 
-    static char objmesh_prefix[128] = "";
+    // This parameter is used for save_each functionality - also use output folder
+    static char objmesh_prefix[256] = "";
     if (objmesh_prefix[0] == '\0') {
-        snprintf(objmesh_prefix, sizeof(objmesh_prefix), "%s", (folder_name+"/mesh_").c_str());
+        snprintf(objmesh_prefix, sizeof(objmesh_prefix), "%s/mesh_", output_path.str().c_str());
     }
 
     testbed.add_mesh_save_params(resMesh,objmesh_prefix);
@@ -409,11 +460,12 @@ int main(int argc, char** argv) {
         testbed.compute_and_save_marching_cubes_mesh(obj_filename_buf,resMesh,{},0.0f,false);
     }
 
-    std::string snpashot_filename = folder_name +"/snapshot_"+to_string(testbed.get_max_iter())+".msgpack";
+    // Save snapshot in output folder
+    std::string snapshot_filename = output_path.str() + "/snapshot_" + to_string(testbed.get_max_iter()) + ".msgpack";
     if(save_snapshot_flag){
         tlog::info() << "Saving Snapshot !";
-        tlog::info() << snpashot_filename;
-        testbed.save_snapshot(snpashot_filename,false);
+        tlog::info() << snapshot_filename;
+        testbed.save_snapshot(snapshot_filename,false);
     }
 
 
