@@ -144,15 +144,13 @@ You can also directly work with the `./build/testbed` command to do your own opt
 - [RNb-NeuS2](https://robinbruneau.github.io/publications/rnb_neus2.html)
 
 ```bibtex
-@misc{Bruneau25,
+@article{Bruneau25,
     title={{Multi-view Surface Reconstruction Using Normal and Reflectance Cues}},
-    author={Robin Bruneau and Baptiste Brument and Yvain Quéau and Jean Mélou and François Bernard Lauze and Jean-Denis
-    Durou and Lilian Calvet},
+    author={Robin Bruneau and Baptiste Brument and Yvain Quéau and Jean Mélou and François Bernard Lauze and Jean-Denis Durou and Lilian Calvet},
+    journal={International Journal of Computer Vision (IJCV)},
     year={2025},
-    eprint={2506.04115},
-    archivePrefix={arXiv},
-    primaryClass={cs.CV},
-    url={https://arxiv.org/abs/2506.04115%7D,
+    note={to appear},
+    url={https://arxiv.org/abs/2506.04115}
 }
 ```
 
