@@ -123,6 +123,161 @@ def _load_mask(pose_id, mask_sfm, mask_folder_path, img_shape, bit_depth):
     return np.ones((h, w), dtype=dtype) * max_val
 
 
+def compute_scaling_from_silhouettes(cameras, masks, sphere_scale=1.0,
+                                     fg_area_ratio=5):
+    """Compute (scene_center, scale_factor) from silhouettes (MVSCPS method).
+
+    Center is estimated via mask center-of-mass triangulation (least-squares).
+    Radius is estimated via projected sphere area matching.
+
+    Args:
+        cameras: list of dicts with keys fx, fy, cx, cy,
+                 R_cam2world (3x3), center (3,).
+        masks:   list of (H, W) float arrays (values in [0, 1]).
+        sphere_scale:  target sphere radius.
+        fg_area_ratio: ratio of sphere area to foreground area.
+
+    Returns:
+        scene_center: (3,) array
+        scale_factor: float
+    """
+    import numpy as np
+    from scipy.ndimage import center_of_mass
+
+    A = np.zeros((3, 3))
+    b = np.zeros(3)
+
+    cam_data = []
+    for cam, mask in zip(cameras, masks):
+        fx, fy = cam['fx'], cam['fy']
+        cx, cy = cam['cx'], cam['cy']
+        K = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]])
+        K_inv = np.linalg.inv(K)
+
+        R_c2w = cam['R_cam2world']
+        center_cam = cam['center']
+
+        com = center_of_mass(mask.astype(np.float64))
+        com_pixel = np.array([com[1], com[0], 1.0])
+
+        dir_cam = K_inv @ com_pixel
+        dir_cam = dir_cam / np.linalg.norm(dir_cam)
+
+        m = R_c2w @ dir_cam
+        o = center_cam
+
+        I_mmT = np.eye(3) - np.outer(m, m)
+        A += I_mmT
+        b += I_mmT @ o
+
+        cam_data.append((fx, fy, R_c2w, center_cam, mask))
+
+    scene_center = np.linalg.lstsq(A, b, rcond=None)[0]
+
+    total_fg_area = 0
+    sum_fz2 = 0
+    for fx, fy, R_c2w, center_cam, mask in cam_data:
+        total_fg_area += mask.sum()
+        R_w2c = R_c2w.T
+        center_in_cam = R_w2c @ (scene_center - center_cam)
+        Z = center_in_cam[2]
+        if abs(Z) < 1e-8:
+            Z = 1e-8
+        sum_fz2 += (fx / Z) ** 2
+
+    radius = np.sqrt(fg_area_ratio * total_fg_area / (np.pi * sum_fz2))
+    if radius < 1e-8:
+        radius = 1.0
+    scale_factor = float(sphere_scale / radius)
+
+    return scene_center, scale_factor
+
+
+def _extract_cameras_for_scaling(sfm_data, camera_module, numeric_module,
+                                 mask_sfm, mask_folder_path):
+    """Extract camera dicts and masks for silhouette-based scaling.
+
+    Returns:
+        cameras: list of dicts with fx, fy, cx, cy, R_cam2world, center
+        masks: list of (H, W) float arrays
+    """
+    import cv2
+    import numpy as np
+
+    flip = np.array([1, -1, -1], dtype=np.float32)
+
+    views = sfm_data.getViews()
+    pose_ids = sorted([
+        vid for vid in views.keys()
+        if vid == views[vid].getPoseId()
+    ])
+
+    cameras = []
+    masks = []
+
+    for pose_id in pose_ids:
+        view = views[pose_id]
+        if not sfm_data.isPoseAndIntrinsicDefined(pose_id):
+            continue
+
+        # Camera pose
+        pose = sfm_data.getPose(view)
+        transform = pose.getTransform()
+        R = transform.rotation()
+        center = transform.center().squeeze()
+        center_world = np.array(
+            [center[0], center[1], center[2]], dtype=np.float64) * flip
+
+        # R_cam2world with Y/Z flip
+        R_c2w = R.transpose()
+        flip_mat = np.diag(flip).astype(np.float64)
+        R_c2w = flip_mat @ R_c2w
+
+        # Intrinsics
+        intrinsic_id = view.getIntrinsicId()
+        intrinsic = sfm_data.getIntrinsics()[intrinsic_id]
+        K = _extract_intrinsics(intrinsic, camera_module, numeric_module)
+        fx, fy, cx, cy = K[0, 0], K[1, 1], K[0, 2], K[1, 2]
+
+        # Load mask
+        mask_img = None
+        if mask_sfm is not None:
+            mask_views = mask_sfm.getViews()
+            if pose_id in mask_views:
+                mask_view = mask_views[pose_id]
+                mask_path = mask_view.getImage().getImagePath()
+                if os.path.exists(mask_path):
+                    mask_img = cv2.imread(mask_path, cv2.IMREAD_UNCHANGED)
+
+        if mask_img is None and mask_folder_path and os.path.isdir(
+                mask_folder_path):
+            for ext in ('.png', '.jpg', '.jpeg', '.exr'):
+                candidate = os.path.join(
+                    mask_folder_path, "{}{}".format(pose_id, ext))
+                if os.path.exists(candidate):
+                    mask_img = cv2.imread(candidate, cv2.IMREAD_UNCHANGED)
+                    break
+
+        if mask_img is None:
+            continue
+
+        # Convert to single-channel float [0, 1]
+        if len(mask_img.shape) == 3:
+            mask_img = mask_img[:, :, 0]
+        threshold = 125 if mask_img.dtype == np.uint8 else 30000
+        mask_float = (mask_img > threshold).astype(np.float32)
+
+        cameras.append({
+            'fx': float(fx), 'fy': float(fy),
+            'cx': float(cx), 'cy': float(cy),
+            'R_cam2world': R_c2w.astype(np.float64),
+            'center': center_world.astype(np.float64),
+        })
+        masks.append(mask_float)
+
+    return cameras, masks
+
+
 def _extract_intrinsics(intrinsic, camera_module, numeric_module):
     """Extract intrinsic matrix from a pyalicevision intrinsic object.
 
@@ -217,32 +372,50 @@ def prepare_testbed_data(normal_sfm_path, output_folder, logger,
     scale_matrix = np.eye(4, dtype=np.float32)
 
     if scaling_mode != "none":
-        modes_to_try = {
-            "auto": ["pcd", "cameras"],
-            "pcd": ["pcd"],
-            "cameras": ["cameras"],
-            "silhouettes": ["pcd", "cameras"],
-        }.get(scaling_mode, ["pcd", "cameras"])
+        scaled = False
 
-        if scaling_mode == "silhouettes":
-            logger.warning(
-                "Silhouette scaling not supported for RNb-NeuS2, "
-                "falling back to auto")
-
-        points_3d = None
-        for mode in modes_to_try:
-            points_3d = extract_3d_points_from_sfm(normal_sfm, mode)
+        # --- Try pcd (landmarks) ---
+        if scaling_mode in ("auto", "pcd"):
+            points_3d = extract_3d_points_from_sfm(normal_sfm, "pcd")
             if points_3d is not None and len(points_3d) > 0:
-                logger.info("Scaling mode '{}': {} points".format(
-                    mode, len(points_3d)))
-                break
+                logger.info("Scaling from landmarks: {} points".format(
+                    len(points_3d)))
+                scene_center, scale_factor, scale_matrix = (
+                    compute_unit_sphere_scaling(points_3d, sphere_scale))
+                scaled = True
 
-        if points_3d is None or len(points_3d) == 0:
+        # --- Try silhouettes ---
+        if not scaled and scaling_mode in ("auto", "silhouettes"):
+            sil_cams, sil_masks = _extract_cameras_for_scaling(
+                normal_sfm, camera, numeric, mask_sfm, mask_folder_path)
+            if sil_cams and sil_masks:
+                logger.info("Scaling from silhouettes: {} views".format(
+                    len(sil_cams)))
+                scene_center, scale_factor = (
+                    compute_scaling_from_silhouettes(
+                        sil_cams, sil_masks,
+                        sphere_scale=sphere_scale))
+                scene_center = scene_center.astype(np.float32)
+                scale_matrix = np.eye(4, dtype=np.float32)
+                for i in range(3):
+                    scale_matrix[i, i] = scale_factor
+                    scale_matrix[i, 3] = -scene_center[i] * scale_factor
+                scaled = True
+
+        # --- Try camera centers ---
+        if not scaled and scaling_mode in ("auto", "cameras"):
+            points_3d = extract_3d_points_from_sfm(normal_sfm, "cameras")
+            if points_3d is not None and len(points_3d) > 0:
+                logger.info("Scaling from camera centers: {} cameras".format(
+                    len(points_3d)))
+                scene_center, scale_factor, scale_matrix = (
+                    compute_unit_sphere_scaling(points_3d, sphere_scale))
+                scaled = True
+
+        if not scaled:
             raise RuntimeError(
-                "No 3D points for scaling. Use scalingMode='none' to disable.")
+                "No data for scaling. Use scalingMode='none' to disable.")
 
-        scene_center, scale_factor, scale_matrix = (
-            compute_unit_sphere_scaling(points_3d, sphere_scale))
         logger.info("Scene center: {}".format(scene_center.tolist()))
         logger.info("Scale factor: {:.6f}".format(scale_factor))
 
