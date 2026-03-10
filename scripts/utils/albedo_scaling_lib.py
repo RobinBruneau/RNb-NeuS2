@@ -408,10 +408,10 @@ def compute_albedo_scale_ratios(
             ray_directions=rays_direction,
             multiple_hits=False
         )
-        
+
         pixels = pixels[index_ray]
         albedo_values = albedo_values[index_ray]
-        
+
         # Check both neighbors
         right_cam_id = (cam_id + 1) % n_views
         left_cam_id = (cam_id - 1) % n_views
@@ -421,14 +421,30 @@ def compute_albedo_scale_ratios(
             neighbor_R_c2w = R_c2w_array[neigh_cam_id]
             neighbor_center = centers_array[neigh_cam_id]
             
-            # Check visibility from neighbor
+            # Check visibility from neighbor: trace ray from hit point to
+            # neighbor camera. Use face-normal offset to escape the surface
+            # reliably, especially on noisy intermediate meshes.
             neighbor_rays_direction = neighbor_center.T - locations
-            neighbor_rays_direction /= np.linalg.norm(neighbor_rays_direction, axis=1)[:, None]
-            neighbor_rays_origin = locations + 1e-3 * neighbor_rays_direction
-            hit = mesh.ray.intersects_any(
+            neighbor_dists = np.linalg.norm(neighbor_rays_direction, axis=1, keepdims=True)
+            neighbor_rays_direction = neighbor_rays_direction / neighbor_dists
+            # Offset along the ray direction, proportional to neighbor distance
+            eps = np.maximum(neighbor_dists.flatten() * 1e-4, 1e-2)
+            neighbor_rays_origin = locations + eps[:, None] * neighbor_rays_direction
+
+            # Only count hits between the origin and the neighbor camera
+            hit_locs, hit_ray_idx, _ = mesh.ray.intersects_location(
                 ray_origins=neighbor_rays_origin,
-                ray_directions=neighbor_rays_direction
+                ray_directions=neighbor_rays_direction,
+                multiple_hits=True,
             )
+            hit = np.zeros(len(locations), dtype=bool)
+            if len(hit_locs) > 0:
+                # Check if hit is closer than the neighbor camera
+                hit_d = np.linalg.norm(
+                    hit_locs - neighbor_rays_origin[hit_ray_idx], axis=1)
+                blocked = hit_d < (neighbor_dists.flatten()[hit_ray_idx] - eps[hit_ray_idx])
+                for idx in hit_ray_idx[blocked]:
+                    hit[idx] = True
             
             # Keep only visible points
             intersection_points = locations[~hit]
