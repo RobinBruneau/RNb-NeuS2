@@ -8,6 +8,8 @@ expected by the RNb-NeuS2 testbed, with optional unit sphere scaling.
 import json
 import os
 
+os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
+
 
 def compute_unit_sphere_scaling(points_3d, sphere_scale=1.0):
     """Compute centroid and scale factor to fit points in a unit sphere.
