@@ -374,17 +374,7 @@ def prepare_testbed_data(normal_sfm_path, output_folder, logger,
     if scaling_mode != "none":
         scaled = False
 
-        # --- Try pcd (landmarks) ---
-        if scaling_mode in ("auto", "pcd"):
-            points_3d = extract_3d_points_from_sfm(normal_sfm, "pcd")
-            if points_3d is not None and len(points_3d) > 0:
-                logger.info("Scaling from landmarks: {} points".format(
-                    len(points_3d)))
-                scene_center, scale_factor, scale_matrix = (
-                    compute_unit_sphere_scaling(points_3d, sphere_scale))
-                scaled = True
-
-        # --- Try silhouettes ---
+        # --- Try silhouettes first (more reliable for PS/neural reconstruction) ---
         if not scaled and scaling_mode in ("auto", "silhouettes"):
             sil_cams, sil_masks = _extract_cameras_for_scaling(
                 normal_sfm, camera, numeric, mask_sfm, mask_folder_path)
@@ -400,6 +390,16 @@ def prepare_testbed_data(normal_sfm_path, output_folder, logger,
                 for i in range(3):
                     scale_matrix[i, i] = scale_factor
                     scale_matrix[i, 3] = -scene_center[i] * scale_factor
+                scaled = True
+
+        # --- Fall back to pcd (landmarks) ---
+        if not scaled and scaling_mode in ("auto", "pcd"):
+            points_3d = extract_3d_points_from_sfm(normal_sfm, "pcd")
+            if points_3d is not None and len(points_3d) > 0:
+                logger.info("Scaling from landmarks: {} points".format(
+                    len(points_3d)))
+                scene_center, scale_factor, scale_matrix = (
+                    compute_unit_sphere_scaling(points_3d, sphere_scale))
                 scaled = True
 
         # --- Try camera centers ---
