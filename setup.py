@@ -5,14 +5,12 @@ setup(
     version="2.0.0",
     packages=find_packages(include=[
         'rnb_neus2', 'rnb_neus2.*',
-        'scripts', 'scripts.*',
     ]),
     install_requires=[
         'numpy>=1.21,<2.0',
         'opencv-python',
         'trimesh',
         'scipy',
-        'matplotlib',
         'embreex',
         'tqdm',
         'psutil',
