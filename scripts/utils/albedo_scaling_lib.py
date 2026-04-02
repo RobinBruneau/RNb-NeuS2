@@ -233,13 +233,20 @@ def load_cameras_from_transform_json(json_path, albedo_images, logger=None):
         data = json.load(f)
     
     frames = data['frames']
-    
+
+    # If n2w (normalized-to-world) is present, apply it to transform cameras
+    # from normalized space to world space automatically.
+    n2w = None
+    if 'n2w' in data:
+        n2w = np.array(data['n2w'], dtype=np.float64)
+        log("Found n2w matrix in transform.json, converting cameras to world space")
+
     # Match frames to albedo images
     # Albedo images are in order, frames should match by filename
     K_array = []
     R_c2w_array = []
     centers_array = []
-    
+
     # Get common intrinsics (fl_x/fl_y/cx/cy format)
     global_fx = data.get('fl_x', None)
     global_fy = data.get('fl_y', global_fx)
@@ -271,13 +278,17 @@ def load_cameras_from_transform_json(json_path, albedo_images, logger=None):
             K[1, 1] = fy
             K[0, 2] = cx
             K[1, 2] = cy
-        
-        # Get transform matrix (camera-to-world)
-        transform_matrix = np.array(frame['transform_matrix'], dtype=np.float32)
-        
-        R_c2w = transform_matrix[:3, :3]
-        center = transform_matrix[:3, [3]]
-        
+
+        # Get transform matrix (camera-to-world in normalized space)
+        c2w = np.array(frame['transform_matrix'], dtype=np.float64)
+
+        # Apply n2w to get camera-to-world in world space
+        if n2w is not None:
+            c2w = n2w @ c2w
+
+        R_c2w = c2w[:3, :3].astype(np.float32)
+        center = c2w[:3, [3]].astype(np.float32)
+
         K_array.append(K)
         R_c2w_array.append(R_c2w)
         centers_array.append(center)
