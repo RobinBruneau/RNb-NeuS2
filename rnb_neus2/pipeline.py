@@ -182,14 +182,14 @@ def postprocess_mesh(data_dir, output_mesh_path, logger=None):
 
     import trimesh
 
+    # Search for mesh in output/ subdirectory first, then data_dir itself
     output_subdir = os.path.join(data_dir, "output")
-    if not os.path.isdir(output_subdir):
-        raise RuntimeError("No output directory: {}".format(output_subdir))
-
-    mesh_files = list(Path(output_subdir).glob("mesh_*.obj"))
+    mesh_files = list(Path(output_subdir).glob("mesh_*.obj")) if os.path.isdir(output_subdir) else []
+    if not mesh_files:
+        mesh_files = list(Path(data_dir).glob("mesh_*.obj"))
     if not mesh_files:
         raise RuntimeError(
-            "No mesh files in {}".format(output_subdir))
+            "No mesh files in {} or {}".format(output_subdir, data_dir))
 
     mesh_file = max(mesh_files, key=lambda p: p.stat().st_mtime)
     logger.info("Post-processing: {}".format(mesh_file.name))
@@ -220,6 +220,7 @@ def postprocess_mesh(data_dir, output_mesh_path, logger=None):
 def run_full_pipeline(input_path, testbed_path, output_dir,
                       max_steps=10000, mesh_resolution=1024,
                       scaling_mode="auto", sphere_scale=1.0,
+                      margin_px=20,
                       warmup_ratio=0.1, mask_weight=1.0,
                       super_normal=False, use_l1=False,
                       use_rgb_plus=True, has_albedo=False,
@@ -271,6 +272,7 @@ def run_full_pipeline(input_path, testbed_path, output_dir,
         data, data_dir, logger,
         scaling_mode=scaling_mode,
         sphere_scale=sphere_scale,
+        margin_px=margin_px,
     )
 
     # 3. Common testbed flags

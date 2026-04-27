@@ -35,7 +35,7 @@ def compute_unit_sphere_scaling(points_3d, sphere_scale=1.0):
 
 
 def compute_scaling_from_silhouettes(cameras, masks, sphere_scale=1.0,
-                                     fg_area_ratio=5):
+                                     fg_area_ratio=1.5):
     """Compute (scene_center, scale_factor) from silhouettes (MVSCPS).
 
     Center via mask center-of-mass triangulation.
@@ -101,6 +101,188 @@ def compute_scaling_from_silhouettes(cameras, masks, sphere_scale=1.0,
     scale_factor = float(sphere_scale / radius)
 
     return scene_center, scale_factor
+
+
+def _triangulate_scene_center(cameras, masks):
+    """Triangulate scene center from mask centers of mass (shared by v1 and v2).
+
+    Returns:
+        scene_center: (3,) world coordinates
+    """
+    from scipy.ndimage import center_of_mass
+
+    A = np.zeros((3, 3))
+    b = np.zeros(3)
+
+    for cam, mask in zip(cameras, masks):
+        K_inv = np.linalg.inv(np.array([
+            [cam["fx"], 0, cam["cx"]],
+            [0, cam["fy"], cam["cy"]],
+            [0, 0, 1],
+        ]))
+        com = center_of_mass(mask.astype(np.float64))
+        dir_cam = K_inv @ np.array([com[1], com[0], 1.0])
+        dir_cam /= np.linalg.norm(dir_cam)
+
+        m = cam["R_cam2world"] @ dir_cam
+        o = cam["center"]
+        I_mmT = np.eye(3) - np.outer(m, m)
+        A += I_mmT
+        b += I_mmT @ o
+
+    return np.linalg.lstsq(A, b, rcond=None)[0]
+
+
+def compute_scaling_from_silhouettes_v2(cameras, masks, sphere_scale=1.0,
+                                        margin_px=20, percentile=99):
+    """Compute (scene_center, scale_factor) by optimizing minimum enclosing sphere.
+
+    Finds the smallest 3D sphere whose projection contains all mask contours
+    (up to a given percentile) with a pixel margin.
+
+    Optimization variables: c (sphere center, R³), r (sphere radius, R+).
+    Objective: min r
+    Constraint: for each view i, rho_i - ||m_i* - p_i||_2 >= margin_px
+        where rho_i = fx_i * r / Z_i  (projected radius)
+              p_i = projected sphere center
+              m_i* = percentile-th farthest contour point from mask CoM
+
+    Args:
+        cameras: list of dicts with fx, fy, cx, cy,
+                 R_cam2world (3x3), center (3,).
+        masks: list of (H, W) float arrays in [0, 1].
+        sphere_scale: target sphere radius in normalized space.
+        margin_px: minimum pixel margin between contour and sphere edge.
+        percentile: percentile of contour distances to use (99 = robust to outliers).
+
+    Returns:
+        scene_center: (3,)
+        scale_factor: float
+    """
+    import cv2
+    from scipy.optimize import minimize
+
+    # --- Pre-compute per-view data ---
+    scene_center_init = _triangulate_scene_center(cameras, masks)
+
+    view_data = []
+    for cam, mask in zip(cameras, masks):
+        fx, fy = cam["fx"], cam["fy"]
+        cx, cy = cam["cx"], cam["cy"]
+        R_c2w = cam["R_cam2world"]
+        R_w2c = R_c2w.T
+        t_w2c = -R_w2c @ cam["center"]
+
+        # Find contour points
+        mask_u8 = (mask > 0.5).astype(np.uint8) * 255
+        contours, _ = cv2.findContours(mask_u8, cv2.RETR_EXTERNAL,
+                                       cv2.CHAIN_APPROX_NONE)
+        if not contours:
+            continue
+
+        # All contour points as (N, 2) array
+        pts = np.vstack(contours).squeeze().astype(np.float64)
+        if pts.ndim == 1:
+            continue
+
+        # Center of mass of the mask
+        from scipy.ndimage import center_of_mass
+        com = center_of_mass(mask.astype(np.float64))
+        com_xy = np.array([com[1], com[0]])
+
+        # Distance of each contour point from CoM
+        dists = np.linalg.norm(pts - com_xy, axis=1)
+
+        # Take the percentile-th farthest point
+        thresh = np.percentile(dists, percentile)
+        farthest_idx = np.argmin(np.abs(dists - thresh))
+        m_star = pts[farthest_idx]
+
+        view_data.append({
+            "fx": fx, "cx": cx, "cy": cy,
+            "R_w2c": R_w2c, "t_w2c": t_w2c,
+            "m_star": m_star,
+        })
+
+    if not view_data:
+        return scene_center_init, float(sphere_scale)
+
+    # --- Initialize r from worst case ---
+    def compute_margins(c, r):
+        margins = []
+        for vd in view_data:
+            p_cam = vd["R_w2c"] @ c + vd["t_w2c"]
+            Z = p_cam[2]
+            if Z <= 0:
+                margins.append(-1e6)
+                continue
+            px = vd["fx"] * p_cam[0] / Z + vd["cx"]
+            py = vd["fx"] * p_cam[1] / Z + vd["cy"]
+            rho = vd["fx"] * r / Z
+            dist = np.sqrt((vd["m_star"][0] - px)**2 +
+                           (vd["m_star"][1] - py)**2)
+            margins.append(rho - dist)
+        return np.array(margins)
+
+    # Init r: for each view, compute the world radius that would just reach m_star
+    r_candidates = []
+    for vd in view_data:
+        p_cam = vd["R_w2c"] @ scene_center_init + vd["t_w2c"]
+        Z = p_cam[2]
+        if Z <= 0:
+            continue
+        px = vd["fx"] * p_cam[0] / Z + vd["cx"]
+        py = vd["fx"] * p_cam[1] / Z + vd["cy"]
+        dist_px = np.sqrt((vd["m_star"][0] - px)**2 +
+                          (vd["m_star"][1] - py)**2)
+        r_world = (dist_px + margin_px) * Z / vd["fx"]
+        r_candidates.append(r_world)
+
+    r_init = max(r_candidates) if r_candidates else 1.0
+
+    # --- Optimize with penalty method ---
+    lam = 1000.0
+
+    def objective(x):
+        c = x[:3]
+        r = x[3]
+        if r <= 0:
+            return 1e12
+
+        cost = r
+        margins = compute_margins(c, r)
+        violations = np.maximum(0, margin_px - margins)
+        cost += lam * np.sum(violations ** 2)
+        return cost
+
+    x0 = np.array([*scene_center_init, r_init], dtype=np.float64)
+    result = minimize(objective, x0, method="Nelder-Mead",
+                      options={"maxiter": 5000, "xatol": 1e-4, "fatol": 1e-6})
+
+    c_opt = result.x[:3]
+    r_opt = abs(result.x[3])
+
+    # Verify all constraints are satisfied
+    final_margins = compute_margins(c_opt, r_opt)
+    min_margin = final_margins.min()
+    if min_margin < 0:
+        # Safety: inflate radius to satisfy all constraints
+        worst_deficit = -min_margin
+        # Find the view with worst violation and inflate r
+        for vd in view_data:
+            p_cam = vd["R_w2c"] @ c_opt + vd["t_w2c"]
+            Z = p_cam[2]
+            if Z <= 0:
+                continue
+            px = vd["fx"] * p_cam[0] / Z + vd["cx"]
+            py = vd["fx"] * p_cam[1] / Z + vd["cy"]
+            dist_px = np.sqrt((vd["m_star"][0] - px)**2 +
+                              (vd["m_star"][1] - py)**2)
+            r_needed = (dist_px + margin_px) * Z / vd["fx"]
+            r_opt = max(r_opt, r_needed)
+
+    scale_factor = float(sphere_scale / r_opt)
+    return c_opt.astype(np.float32), scale_factor
 
 
 def extract_cameras_for_scaling(data, mask_folder_path=""):

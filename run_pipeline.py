@@ -37,10 +37,12 @@ def main():
                         help="Marching cubes resolution (default: 1024)")
     parser.add_argument("--scaling-mode", default="auto",
                         choices=["auto", "pcd", "silhouettes",
-                                 "cameras", "none"],
+                                 "silhouettes_v2", "cameras", "none"],
                         help="Scene normalization mode (default: auto)")
     parser.add_argument("--sphere-scale", type=float, default=1.0,
                         help="Target sphere radius (default: 1.0)")
+    parser.add_argument("--margin-px", type=int, default=20,
+                        help="Pixel margin for silhouettes_v2 (default: 20)")
     parser.add_argument("--warmup-ratio", type=float, default=0.1,
                         help="Phase 1 ratio for albedo mode (default: 0.1)")
     parser.add_argument("--mask-weight", type=float, default=1.0,
@@ -76,6 +78,7 @@ def main():
         mesh_resolution=args.mesh_resolution,
         scaling_mode=args.scaling_mode,
         sphere_scale=args.sphere_scale,
+        margin_px=args.margin_px,
         warmup_ratio=args.warmup_ratio,
         mask_weight=args.mask_weight,
         super_normal=args.supernormal,

@@ -15,6 +15,7 @@ import numpy as np
 from .scaling import (
     compute_unit_sphere_scaling,
     compute_scaling_from_silhouettes,
+    compute_scaling_from_silhouettes_v2,
     extract_cameras_for_scaling,
 )
 
@@ -40,7 +41,7 @@ def _load_mask_image(mask_path, img_shape, bit_depth):
     return np.ones((h, w), dtype=dtype) * max_val
 
 
-def _compute_scaling(data, scaling_mode, sphere_scale, logger):
+def _compute_scaling(data, scaling_mode, sphere_scale, margin_px, logger):
     """Compute scene scaling from loaded data.
 
     Returns:
@@ -56,14 +57,22 @@ def _compute_scaling(data, scaling_mode, sphere_scale, logger):
     scaled = False
 
     # Try silhouettes first (more reliable for PS/neural reconstruction)
-    if not scaled and scaling_mode in ("auto", "silhouettes"):
+    if not scaled and scaling_mode in ("auto", "silhouettes", "silhouettes_v2"):
         sil_cams, sil_masks = extract_cameras_for_scaling(data)
         if sil_cams and sil_masks:
-            logger.info("Scaling from silhouettes: {} views".format(
-                len(sil_cams)))
-            scene_center, scale_factor = (
-                compute_scaling_from_silhouettes(
-                    sil_cams, sil_masks, sphere_scale=sphere_scale))
+            if scaling_mode in ("auto", "silhouettes_v2"):
+                logger.info("Scaling from silhouettes_v2 (min enclosing sphere): {} views".format(
+                    len(sil_cams)))
+                scene_center, scale_factor = (
+                    compute_scaling_from_silhouettes_v2(
+                        sil_cams, sil_masks, sphere_scale=sphere_scale,
+                        margin_px=margin_px))
+            else:
+                logger.info("Scaling from silhouettes: {} views".format(
+                    len(sil_cams)))
+                scene_center, scale_factor = (
+                    compute_scaling_from_silhouettes(
+                        sil_cams, sil_masks, sphere_scale=sphere_scale))
             scene_center = scene_center.astype(np.float32)
             scale_matrix = np.eye(4, dtype=np.float32)
             for i in range(3):
@@ -105,21 +114,23 @@ def _compute_scaling(data, scaling_mode, sphere_scale, logger):
 
 
 def prepare_testbed_data(data, output_folder, logger,
-                         scaling_mode="auto", sphere_scale=1.0):
+                         scaling_mode="auto", sphere_scale=1.0,
+                         margin_px=20):
     """Prepare testbed data from a loaded data dict.
 
     Args:
         data: Standardized dict from any dataloader.
         output_folder: Where to write transform.json + image folders.
         logger: Logger with .info() method.
-        scaling_mode: "auto", "pcd", "silhouettes", "cameras", "none".
+        scaling_mode: "auto", "pcd", "silhouettes", "silhouettes_v2", "cameras", "none".
         sphere_scale: Target sphere radius.
+        margin_px: Pixel margin for silhouettes_v2 mode.
 
     Returns:
         dict with scene_center, scale_factor, scale_matrix, n2w, n_frames.
     """
     scene_center, scale_factor, scale_matrix = _compute_scaling(
-        data, scaling_mode, sphere_scale, logger)
+        data, scaling_mode, sphere_scale, margin_px, logger)
 
     # Output directories
     albedos_dir = os.path.join(output_folder, "albedos")
