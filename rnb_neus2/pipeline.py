@@ -183,10 +183,12 @@ def postprocess_mesh(data_dir, output_mesh_path, logger=None):
     import trimesh
 
     # Search for mesh in output/ subdirectory first, then data_dir itself
+    # Use mesh_*.o* to also match truncated filenames (e.g. mesh_50000_.o)
     output_subdir = os.path.join(data_dir, "output")
-    mesh_files = list(Path(output_subdir).glob("mesh_*.obj")) if os.path.isdir(output_subdir) else []
+    mesh_files = list(Path(output_subdir).glob("mesh_*.o*")) if os.path.isdir(output_subdir) else []
     if not mesh_files:
-        mesh_files = list(Path(data_dir).glob("mesh_*.obj"))
+        mesh_files = list(Path(data_dir).glob("mesh_*.o*"))
+    mesh_files = [f for f in mesh_files if f.suffix not in ('.json', '.txt', '.msgpack')]
     if not mesh_files:
         raise RuntimeError(
             "No mesh files in {} or {}".format(output_subdir, data_dir))
