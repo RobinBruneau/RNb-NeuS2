@@ -24,11 +24,14 @@ binary from this repository.
    Python 3.10 environment).
 
 2. **Expose the environment as the plugin `venv/`.** Meshroom looks for a `venv/`
-   directory at the plugin root and adds its `site-packages` to `PYTHONPATH`. With
-   your environment active, symlink it from the repository root:
-   ```bash
-   ln -s "$CONDA_PREFIX" venv
-   ```
+   directory at the plugin root and adds its `site-packages` to `PYTHONPATH`.
+   - With the **`venv` install** (Option A in the main README), `venv/` already sits
+     at the repository root — nothing to do.
+   - With a **conda env** (Option B), symlink it from the repository root, with the
+     env active:
+     ```bash
+     ln -s "$CONDA_PREFIX" venv
+     ```
 
 3. **Point the node to the testbed.** The path is resolved from `config.json`:
    ```json

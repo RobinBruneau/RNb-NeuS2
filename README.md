@@ -62,8 +62,19 @@ This produces the `./build/testbed` executable used by the training pipeline.
 **3. Create the Python environment**
 
 The Python side (data preparation, scene scaling, albedo scaling and pipeline
-orchestration) lives in the `rnb_neus2` package. Install it in a dedicated
-environment:
+orchestration) lives in the `rnb_neus2` package. Use either a plain `venv` or conda.
+
+*Option A — `venv` (no conda).* Create the environment as a `venv/` directory at the
+repository root. This is also exactly what the [Meshroom plugin](#meshroom-plugin)
+expects, so no extra symlink is needed later:
+
+```bash
+python3.10 -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+pip install -e .
+```
+
+*Option B — conda.*
 
 ```bash
 conda create -n rnb2 python=3.10   # pick another name if "rnb2" already exists
@@ -182,13 +193,15 @@ from AliceVision SfMData inputs — no manual data conversion required.
 **Install (3 steps):**
 
 1. Build the testbed and create the Python environment (see [Installation](#installation)).
-2. Make the package importable inside Meshroom by exposing this repository's
-   environment as the plugin `venv/`. Meshroom expects a `venv/` directory at the
-   plugin root and adds it to its Python path. From the **repository root**, with the
-   `rnb2` environment active, symlink it there:
-   ```bash
-   ln -s "$CONDA_PREFIX" venv
-   ```
+2. Make the package importable inside Meshroom as the plugin `venv/`. Meshroom expects
+   a `venv/` directory at the plugin root and adds it to its Python path.
+   - If you used **Option A (`venv`)**, you already have `venv/` at the repository
+     root — nothing to do.
+   - If you used **Option B (conda)**, symlink the conda environment from the
+     **repository root**, with it active:
+     ```bash
+     ln -s "$CONDA_PREFIX" venv
+     ```
 3. Register the plugin and start Meshroom:
    ```bash
    export MESHROOM_PLUGINS_PATH=/path/to/RNb-NeuS2
@@ -233,3 +246,5 @@ node outputs the reconstructed `mesh.obj` in world coordinates.
     year={2024}
 }
 ```
+
+This project is built on [NeuS2](https://github.com/19reborn/NeuS2).
