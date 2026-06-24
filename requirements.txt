@@ -1,7 +1,0 @@
-psutil
-numpy
-opencv-python
-embreex
-scipy
-tqdm
-trimesh

@@ -6,6 +6,8 @@ setup(
     packages=find_packages(include=[
         'rnb_neus2', 'rnb_neus2.*',
     ]),
+    py_modules=['run_pipeline'],
+    python_requires='>=3.10',
     install_requires=[
         'numpy>=1.21,<2.0',
         'opencv-python',

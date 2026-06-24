@@ -18,13 +18,3 @@ env.yml
 
 # Docker (local only)
 docker/
-
-# Legacy scripts & scratch files
-tmp.sh
-run_reprod.sh
-run2.sh
-AnacondaBat.bat
-scripts/new.ipynb
-
-# Meshroom legacy
-meshroom/RNb-NeuS2/ScaleAlbedos.py
