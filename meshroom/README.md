@@ -1,118 +1,108 @@
-# RNb-NeuS2 Meshroom Nodes
+# RNb-NeuS2 — Meshroom Plugin
 
-This folder contains Meshroom nodes for the RNb-NeuS2 pipeline.
+This folder turns RNb-NeuS2 into a [Meshroom](https://github.com/alicevision/Meshroom)
+node so the whole reconstruction runs inside a photogrammetry graph.
 
 ## Overview
 
-Two nodes are available:
-1. **PrepareRNbNeuS2Data** - Prepares data for RNb-NeuS2 (scales to unit sphere, creates transform.json)
-2. **RNbNeuS2** - Runs the RNb-NeuS2 neural reconstruction
+A single node is provided:
+
+**`RNbNeuS2`** (category *Neural Reconstruction*) — neural surface reconstruction
+from multi-view normal and reflectance maps. It runs the **entire** pipeline
+internally: it reads AliceVision SfMData, converts them to the testbed format,
+normalizes the scene into the unit sphere, trains the CUDA testbed (two-stage, with
+optional multi-view albedo scaling), and exports the mesh in world coordinates.
+No separate data-preparation node is needed.
 
 ## Installation
 
-### Python Environment
+The node calls into the `rnb_neus2` Python package and the compiled `testbed`
+binary from this repository.
 
-Install the package and dependencies:
+1. **Build the testbed and install the package** — follow the
+   [main README](../README.md#installation) (`cmake` build + `pip install -e .` in a
+   Python 3.10 environment).
 
-```
-cd RNb-NeuS2
-pip install -e .
-```
-
-Required packages:
-- numpy
-- opencv-python
-- trimesh
-- embreex
-- scipy
-- matplotlib
-
-## Nodes Documentation
-
-### 1. PrepareRNbNeuS2Data
-
-Prepares input data for RNb-NeuS2 reconstruction.
-
-**Key Inputs:**
-- `inputNormalSfm`: SfMData file containing normal maps paths and camera information
-- `inputAlbedoSfm`: SfMData file containing albedo maps paths (optional)
-- `inputLandmarksSfm`: SfMData file with 3D landmarks for unit sphere scaling (optional)
-- `inputMesh`: Mesh file (.obj, .ply, etc.) for unit sphere scaling (alternative to landmarks)
-- `inputMaskFolder`: Folder containing mask images named by poseId
-- `scaleToUnitSphere`: Automatically scale poses to fit scene in unit sphere (default: true)
-- `sphereScale`: Scale factor for the unit sphere (default: 0.9)
-
-**Outputs:**
-- `outputFolder`: Folder containing prepared RNb-NeuS2 data
-- `transformJson`: Generated transform.json file with camera parameters
-
-**Features:**
-- Automatic unit sphere scaling using SfM landmarks or mesh vertices
-- Creates `albedos/` and `normals/` folders with proper masks
-
-### 2. RNbNeuS2
-
-Runs the RNb-NeuS2 neural reconstruction.
-
-**Training Modes:**
-
-**Key Inputs:**
-- `input`: Prepared data folder from PrepareRNbNeuS2Data
-- `rnbNeuS2Path`: Path to testbed executable
-- `maxIter`: Maximum training iterations (default: 15000)
-- `resolution`: Mesh resolution for marching cubes (default: 1024)
-- `maskWeight`: Weight for mask loss (default: 1.0)
-- `noAlbedo`: Disable albedo, use only normals
-- `useL1Norm`: Use L1 norm
-- `noRgbPlus`: Disable the RGB+ normalization
-- `superNormal`: Enable SuperNormal mode (single-stage training)
-- `saveMesh`: Save output mesh (default: true)
-
-**Outputs:**
-- `outputFolder`: Folder with training results
-- `outputMesh`: Generated mesh (OBJ format)
-- `outputSnapshot`: Training snapshot (msgpack format)
-
-## Usage Example
-
-1. **Prepare Data:**
-   ```
-   PrepareRNbNeuS2Data
-   ├─ inputNormalSfm: path/to/normals_sfm.abc
-   ├─ inputAlbedoSfm: path/to/albedos_sfm.abc (optional)
-   ├─ inputMesh: path/to/mesh.obj (for scaling)
-   └─ scaleToUnitSphere: true
+2. **Expose the environment as the plugin `venv/`.** Meshroom looks for a `venv/`
+   directory at the plugin root and adds its `site-packages` to `PYTHONPATH`. With
+   your environment active, symlink it from the repository root:
+   ```bash
+   ln -s "$CONDA_PREFIX" venv
    ```
 
-2. **Run RNb-NeuS2:**
+3. **Point the node to the testbed.** The path is resolved from `config.json`:
+   ```json
+   [
+       {"key": "RNB_NEUS2_TESTBED_PATH", "type": "path", "value": "../build/testbed"}
+   ]
    ```
-   RNbNeuS2
-   ├─ input: <output from PrepareRNbNeuS2Data>
-   ├─ maxIter: 15000
-   ├─ resolution: 1024
-   └─ superNormal: false  # Use two-stage RNb-NeuS
+   The default (`../build/testbed`, relative to this `meshroom/` folder) matches the
+   standard build location. Edit it if your testbed lives elsewhere. An environment
+   variable of the same name overrides this value.
+
+4. **Register the plugin and launch Meshroom:**
+   ```bash
+   export MESHROOM_PLUGINS_PATH=/path/to/RNb-NeuS2
+   meshroom
    ```
 
-## Command-Line Equivalents
+## Node: `RNbNeuS2`
 
-**RNb-NeuS (Two-Stage):**
+### Inputs
+
+| Parameter | Label | Default | Description |
+|-----------|-------|---------|-------------|
+| `inputNormalSfm` | Normal Maps SfMData | — | SfMData pointing to the normal-map images. **Required.** |
+| `inputAlbedoSfm` | Albedo Maps SfMData | — | SfMData pointing to albedo images. If set, enables two-phase training with albedo scaling. |
+| `inputMaskSfm` | Mask SfMData | — | SfMData pointing to mask images. |
+| `inputMaskFolder` | Mask Folder | — | Folder of masks named by `viewId` (e.g. `12345.png`). Ignored when Mask SfMData is provided. |
+| `maxSteps` | Max Training Steps | 15000 | Total iterations for stage 2 (stage 1 uses 2/3 of this). |
+| `meshResolution` | Mesh Resolution | 1024 | Marching cubes resolution for the final mesh. |
+| `scalingMode` | Scaling Mode | `auto` | Scene normalization: `auto` prefers silhouettes when masks exist, then falls back to landmarks (`pcd`) or camera centers. One of `auto`, `pcd`, `silhouettes`, `cameras`, `none`. |
+| `sphereScale` | Sphere Scale | 1.0 | Target scale within the unit sphere after normalization. |
+| `warmupRatio` | Phase 1 Ratio | 0.1 | Fraction of `maxSteps` for the geometry-only warmup (albedo mode only). |
+| `maskWeight` | Mask Weight | 1.0 | Weight of the mask loss. |
+| `superNormal` | SuperNormal | false | Enable SuperNormal mode (MVPS method). |
+| `useL1` | L1 Norm | false | Use L1 color loss instead of L2. |
+| `useRgbPlus` | RGB+ | true | Enable the RGB+ reflectance-singularity correction. |
+| `useGpu` | Use GPU | true | Use GPU for training (CUDA required). |
+| `rnbNeuS2Path` | RNb-NeuS2 Testbed Path | `${RNB_NEUS2_TESTBED_PATH}` | Path to the testbed executable (advanced; from `config.json`). |
+
+### Outputs
+
+| Parameter | Label | Description |
+|-----------|-------|-------------|
+| `outputFolder` | Output Folder | Folder with all training artifacts (`nodeCacheFolder`). |
+| `outputMesh` | Output Mesh | Reconstructed `mesh.obj` in world coordinates (viewable in Meshroom). |
+
+## Usage in Meshroom
+
+1. Produce per-view normal maps (and optionally albedo/reflectance maps) and bring
+   them into the graph as SfMData.
+2. Add an **`RNbNeuS2`** node and connect:
+   - `Normal Maps SfMData` ← your normals SfMData (required),
+   - `Albedo Maps SfMData` ← albedo SfMData (optional, for reflectance-based training),
+   - `Mask SfMData` *or* `Mask Folder` ← masks (optional).
+3. Compute the node. The reconstructed mesh is exposed on `Output Mesh`.
+
+## Command-line equivalent
+
+The node is a thin wrapper around the standalone pipeline. The same reconstruction
+can be launched without Meshroom:
+
 ```bash
-# Stage 1
-./build/testbed --scene data/ --maxiter 10000 --save-snapshot --mask-weight 1.0 --no-gui
+# From SfMData (normals only)
+python ../run_pipeline.py --input normals.sfm --testbed ../build/testbed --output out/
 
-# Stage 2
-./build/testbed --scene data/ --maxiter 15000 --snapshot data/snapshot_10000.msgpack \
-    --save-mesh --resolution 1024 --opti-lights --mask-weight 1.0 --no-gui
-```
-
-**SuperNormal:**
-```bash
-./build/testbed --scene data/ --maxiter 15000 --supernormal --save-mesh \
-    --resolution 1024 --mask-weight 1.0 --no-gui
+# From SfMData with reflectance (two-phase + albedo scaling)
+python ../run_pipeline.py --input normals.sfm --albedo-sfm albedos.sfm \
+    --mask-sfm masks.sfm --has-albedo --testbed ../build/testbed --output out/
 ```
 
 ## Notes
 
-- All nodes work in unit sphere coordinates
-- PrepareRNbNeuS2Data automatically scales the scene using SfM landmarks or mesh vertices
-- RNb-NeuS2 uses two-stage training by default (can be changed to SuperNormal)
+- The node works entirely in unit-sphere coordinates internally and exports the
+  mesh back to world coordinates.
+- Scene normalization is automatic (`auto` prefers silhouettes when masks are
+  available, then falls back to 3D landmarks or camera centers).
+- Albedo scaling runs only when an Albedo SfMData is provided.

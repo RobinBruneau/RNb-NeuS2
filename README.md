@@ -14,49 +14,75 @@ Using Normal and Reflectance Cues</h1>
 </div>
 </div>
 
+> [!TIP]
+> **🆕 RNb-NeuS2 is now available as a Meshroom node!**
+> Run the full pipeline (prepare → scale → train → mesh) directly inside
+> [Meshroom](https://github.com/alicevision/Meshroom) from SfMData inputs — see the
+> [Meshroom Plugin](#meshroom-plugin) section.
+>
+> Looking for a fully open-source, CUDA-library-free variant? Check out
+> **[Open-RNb](https://github.com/meshroomHub/mrOpenRNb)** — a PyTorch /
+> tiny-cuda-nn reimplementation integrated into Meshroom.
+
 ## Table of Contents
 
 - [Installation](#installation)
 - [Data](#data)
 - [Training](#training)
+- [Meshroom Plugin](#meshroom-plugin)
 - [Acknowledgements & Citation](#acknowledgements--citation)
 
 ## Installation
 
-Follow the [Instant-NGP](https://github.com/NVlabs/instant-ngp#building-instant-ngp-windows--linux) instructions for requirements and compilation. Our installation steps are similar.
+RNb-NeuS2 builds on [Instant-NGP](https://github.com/NVlabs/instant-ngp#building-instant-ngp-windows--linux);
+its requirements (a recent CUDA toolkit, a CUDA-capable NVIDIA GPU, CMake ≥ 3.18 and
+a C++14 compiler) apply here as well. Our build steps mirror theirs.
 
-Clone the repository and its submodules:
+**1. Clone the repository**
+
+All C++/CUDA dependencies are vendored under `dependencies/`, so a plain clone is
+enough:
+
 ```bash
 git clone https://github.com/RobinBruneau/RNb-NeuS2/
 cd RNb-NeuS2
 ```
 
-Build the project using CMake:
+**2. Build the CUDA testbed with CMake**
+
 ```bash
 cmake . -B build
-cmake --build build --config RelWithDebInfo -j 
+cmake --build build --config RelWithDebInfo -j
 ```
 
-Environment for the preprocess and the albedo scaling:
+This produces the `./build/testbed` executable used by the training pipeline.
+
+**3. Create the Python environment**
+
+The Python side (data preparation, scene scaling, albedo scaling and pipeline
+orchestration) lives in the `rnb_neus2` package. Install it in a dedicated
+environment:
+
 ```bash
-conda create -n rnb2 python=3.10 
+conda create -n rnb2 python=3.10
 conda activate rnb2
-pip install -r requirements.txt
+pip install -e .
 ```
 
 ## Data
 
-We provide the [DiLiGenT-MV, LUCES-MV and Skoltech3D](https://drive.google.com/drive/folders/1TbOrB38klLpG41bXzI7B1A01qsbEbz9h?usp=sharing) datasets with normals and reflectance maps estimated using [SDM-UniPS](https://github.com/satoshi-ikehata/SDM-UniPS-CVPR2023/) and [Uni-MS-PS](https://github.com/Clement-Hardy/Uni-MS-PS). This link contains also the cleaned resulting meshs and groundtruths.
+We provide the [DiLiGenT-MV, LUCES-MV and Skoltech3D](https://drive.google.com/drive/folders/1TbOrB38klLpG41bXzI7B1A01qsbEbz9h?usp=sharing)
+datasets with normals and reflectance maps estimated using
+[SDM-UniPS](https://github.com/satoshi-ikehata/SDM-UniPS-CVPR2023/) and
+[Uni-MS-PS](https://github.com/Clement-Hardy/Uni-MS-PS). This link also contains the
+cleaned resulting meshes and ground truths.
 
 ### Data Convention
 
 Organize your data in the `./data/` folder following this structure:
+
 ```plaintext
 ./data/FOLDER/
-    albedo/          # (Optional)
-        000.png
-        001.png
-        002.png
     normal/          # (Mandatory)
         000.png
         001.png
@@ -65,78 +91,117 @@ Organize your data in the `./data/` folder following this structure:
         000.png
         001.png
         002.png
-    mask_normal_uncertainty/  # (Optional)
+    albedo/          # (Optional — enables albedo-based training)
         000.png
         001.png
         002.png
     cameras.npz
 ```
 
-cameras.npz follows the data format in [IDR](https://github.com/lioryariv/idr/blob/main/DATA_CONVENTION.md), where world_mat_xx denotes the world to image projection matrix, and scale_mat_xx denotes the normalization matrix.
+Image files are matched by name across folders (e.g. `normal/000.png`,
+`mask/000.png`, `albedo/000.png` describe the same view).
+
+`cameras.npz` follows the data format in
+[IDR](https://github.com/lioryariv/idr/blob/main/DATA_CONVENTION.md), where
+`world_mat_xx` denotes the world-to-image projection matrix and `scale_mat_xx`
+denotes the normalization matrix.
 
 ## Training
 
-### Preprocess the Data
+Reconstruction is driven by a single Python entry point, `run_pipeline.py`, which
+runs the full pipeline: load data → normalize the scene → train the CUDA testbed →
+(optionally) scale albedos → extract the mesh.
+
+### Baseline (normals only)
 
 ```bash
-python script/preprocess.py --folder ./data/<FOLDER>/ --exp_name <EXP_NAME>
+python run_pipeline.py --input ./data/FOLDER --testbed ./build/testbed --output ./out/FOLDER
 ```
 
-### Run Optimization
+The reconstructed mesh is written to `./out/FOLDER/mesh.obj`.
 
-#### Our baseline
-```bash
-./run.sh ./data/<FOLDER>/<EXP_NAME>
-```
-Results will be stored in `./data/<FOLDER>/<EXP_NAME>/`.</br>
-#### Change the loss to L1
-```bash
-./run.sh ./data/<FOLDER>/<EXP_NAME> --lone
-```
-#### Only train using the normals
-```bash
-./run.sh ./data/<FOLDER>/<EXP_NAME> --no-albedo
-```
-#### The SuperNormal sub-case
-```bash
-./run.sh ./data/<FOLDER>/<EXP_NAME> --no-albedo --supernormal
-```
-#### Run Optimization with Scaled Reflectance Maps
+### Reproduce the paper results (with reflectance)
 
-For reflectance maps with varying scale factors, use the `--scale-albedo` flag that generates a mesh without reflectance maps first, then uses this mesh to scale the reflectance maps (pyoctree and scipy are needed in a python environment). Finally, it generates a mesh using the scaled reflectance maps. 
+To use reflectance maps, add `--has-albedo`. This enables two-phase training and
+automatically scales the reflectance maps via multi-view consistency — required to
+reproduce the results of our paper:
 
 ```bash
-./run.sh ./data/<FOLDER>/<EXP_NAME> --scale-albedo
+python run_pipeline.py --input ./data/FOLDER --testbed ./build/testbed \
+    --output ./out/FOLDER --has-albedo
 ```
-Results will be stored in `./data/<FOLDER>/<EXP_NAME>-albedoscaled/`.
 
-Note: You need to use this option in order to reproduce the results of our paper.
-
-#### Other parameters to play with:
-```plaintext
---maxiter INT           # Number of iterations
---resolution INT        # Resolution for marching cube (default 1024, change to 512 if memory issues occur)
---no-opti-lights        # Disable the optimal triplet of lights per pixel
---no-rgbplus            # Disable the correction the reflectance singularity
-```
-The option ```--no-opti-lights``` will use 3 fixed lights at 60° per camera instead of 3 lights per pixels.</br>
-You can also directly work with the `./build/testbed` command to do your own optimisation using the following options:
+### Other options
 
 ```plaintext
---scene FOLDER          # Path to your data
+--max-steps INT          # Total training steps (default: 10000)
+--mesh-resolution INT    # Marching cubes resolution (default: 1024; use 512 if low on memory)
+--scaling-mode MODE      # auto | pcd | silhouettes | silhouettes_v2 | cameras | none (default: auto)
+--sphere-scale FLOAT     # Target sphere radius after normalization (default: 1.0)
+--mask-weight FLOAT      # Weight of the mask loss (default: 1.0)
+--l1                     # Use L1 color loss (L2 by default)
+--no-rgbplus             # Disable the reflectance-singularity (RGB+) correction
+--supernormal            # SuperNormal sub-case (single-stage, normals only)
+--warmup-ratio FLOAT     # Fraction of steps for the geometry-only warmup (albedo mode, default: 0.1)
+```
+
+A console entry point is also installed with the package:
+
+```bash
+rnb-neus2 --input ./data/FOLDER --testbed ./build/testbed --output ./out/FOLDER
+```
+
+### Advanced: calling the testbed directly
+
+The compiled `./build/testbed` can be driven manually for custom experiments
+(the Python pipeline wraps these same calls):
+
+```plaintext
+--scene FOLDER          # Path to the prepared data
 --maxiter INT           # Number of iterations
 --mask-weight FLOAT     # Weight of the mask loss
 --save-mesh             # Extract the mesh at the end
 --save-snapshot         # Save the neural weights
 --no-albedo             # Train only on normals
---lone                  # Apply L1 loss (L2 default)
---resolution INT        # Resolution for marching cube (default 1024, change to 512 if memory issues occur)
---no-gui                # Run optimization without GUI
---supernormal           # Apply the canonical lights (similar to the Supernormal paper)
+--lone                  # Apply L1 loss (L2 by default)
+--resolution INT        # Marching cubes resolution (default 1024)
+--no-gui                # Run without GUI
+--supernormal           # Apply the canonical lights (SuperNormal)
 --opti-lights           # Apply the optimal triplet of lights per pixel
---no-rgbplus            # Disable the correction the reflectance singularity
+--no-rgbplus            # Disable the reflectance-singularity correction
 ```
 
+## Meshroom Plugin
+
+RNb-NeuS2 ships a [Meshroom](https://github.com/alicevision/Meshroom) node,
+**`RNbNeuS2`**, that runs the entire pipeline (prepare → scale → train → mesh)
+from AliceVision SfMData inputs — no manual data conversion required.
+
+**Install (3 steps):**
+
+1. Build the testbed and create the Python environment (see [Installation](#installation)).
+2. Make the package importable inside Meshroom by exposing this repository's
+   environment as the plugin `venv/`. Meshroom expects a `venv/` directory at the
+   plugin root and adds it to its Python path; symlink your environment there:
+   ```bash
+   ln -s "$CONDA_PREFIX" venv   # run with the rnb2 environment activated
+   ```
+3. Register the plugin and start Meshroom:
+   ```bash
+   export MESHROOM_PLUGINS_PATH=/path/to/RNb-NeuS2
+   meshroom
+   ```
+
+The path to the testbed is read from `meshroom/config.json`
+(`RNB_NEUS2_TESTBED_PATH`, default `../build/testbed`); adjust it if your build
+lives elsewhere.
+
+**Use it:** drop an `RNbNeuS2` node in your graph, connect a normal-maps SfMData to
+`Normal Maps SfMData` (and, optionally, albedo/mask SfMData), then compute. The
+node outputs the reconstructed `mesh.obj` in world coordinates.
+
+📖 Full node reference (all inputs/outputs, CLI equivalents): see
+[`meshroom/README.md`](meshroom/README.md).
 
 ## Acknowledgements & Citation
 
