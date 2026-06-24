@@ -58,7 +58,7 @@ binary from this repository.
 | `inputMaskFolder` | Mask Folder | — | Folder of masks named by `viewId` (e.g. `12345.png`). Ignored when Mask SfMData is provided. |
 | `maxSteps` | Max Training Steps | 15000 | Total iterations for stage 2 (stage 1 uses 2/3 of this). |
 | `meshResolution` | Mesh Resolution | 1024 | Marching cubes resolution for the final mesh. |
-| `scalingMode` | Scaling Mode | `auto` | Scene normalization: `auto` prefers silhouettes when masks exist, then falls back to landmarks (`pcd`) or camera centers. One of `auto`, `pcd`, `silhouettes`, `cameras`, `none`. |
+| `scalingMode` | Scaling Mode | `auto` | Scene normalization: `auto` prefers silhouettes when masks exist, then falls back to landmarks (`pcd`) or camera centers. One of `auto`, `pcd`, `silhouettes`, `silhouettes_v2`, `cameras`, `none`. |
 | `sphereScale` | Sphere Scale | 1.0 | Target scale within the unit sphere after normalization. |
 | `warmupRatio` | Phase 1 Ratio | 0.1 | Fraction of `maxSteps` for the geometry-only warmup (albedo mode only). |
 | `maskWeight` | Mask Weight | 1.0 | Weight of the mask loss. |
@@ -67,6 +67,7 @@ binary from this repository.
 | `useRgbPlus` | RGB+ | true | Enable the RGB+ reflectance-singularity correction. |
 | `useGpu` | Use GPU | true | Use GPU for training (CUDA required). |
 | `rnbNeuS2Path` | RNb-NeuS2 Testbed Path | `${RNB_NEUS2_TESTBED_PATH}` | Path to the testbed executable (advanced; from `config.json`). |
+| `verboseLevel` | Verbose Level | `info` | Logging verbosity (`fatal`, `error`, `warning`, `info`, `debug`, `trace`). |
 
 ### Outputs
 

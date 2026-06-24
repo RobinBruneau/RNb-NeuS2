@@ -91,7 +91,8 @@ class RNbNeuS2(desc.Node):
             description="Scene normalization: auto prefers silhouettes when "
                         "masks are available, then falls back to landmarks "
                         "(pcd) or camera centres.",
-            values=["auto", "pcd", "silhouettes", "cameras", "none"],
+            values=["auto", "pcd", "silhouettes", "silhouettes_v2",
+                    "cameras", "none"],
             value="auto",
             exclusive=True,
         ),

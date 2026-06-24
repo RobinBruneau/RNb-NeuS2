@@ -37,6 +37,8 @@ Using Normal and Reflectance Cues</h1>
 RNb-NeuS2 builds on [Instant-NGP](https://github.com/NVlabs/instant-ngp#building-instant-ngp-windows--linux);
 its requirements (a recent CUDA toolkit, a CUDA-capable NVIDIA GPU, CMake ≥ 3.18 and
 a C++14 compiler) apply here as well. Our build steps mirror theirs.
+[OptiX](https://developer.nvidia.com/rtx/ray-tracing/optix) is optional — if found it
+enables hardware ray tracing, but the project compiles fine without it.
 
 **1. Clone the repository**
 
@@ -64,7 +66,7 @@ orchestration) lives in the `rnb_neus2` package. Install it in a dedicated
 environment:
 
 ```bash
-conda create -n rnb2 python=3.10
+conda create -n rnb2 python=3.10   # pick another name if "rnb2" already exists
 conda activate rnb2
 pip install -e .
 ```
@@ -182,9 +184,10 @@ from AliceVision SfMData inputs — no manual data conversion required.
 1. Build the testbed and create the Python environment (see [Installation](#installation)).
 2. Make the package importable inside Meshroom by exposing this repository's
    environment as the plugin `venv/`. Meshroom expects a `venv/` directory at the
-   plugin root and adds it to its Python path; symlink your environment there:
+   plugin root and adds it to its Python path. From the **repository root**, with the
+   `rnb2` environment active, symlink it there:
    ```bash
-   ln -s "$CONDA_PREFIX" venv   # run with the rnb2 environment activated
+   ln -s "$CONDA_PREFIX" venv
    ```
 3. Register the plugin and start Meshroom:
    ```bash
