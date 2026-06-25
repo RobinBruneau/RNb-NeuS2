@@ -225,7 +225,7 @@ node outputs the reconstructed `mesh.obj` in world coordinates.
 - [RNb-NeuS2](https://robinbruneau.github.io/publications/rnb_neus2.html)
 
 ```bibtex
-@article{Bruneau25,
+@article{Bruneau26,
     title={{Multi-view Surface Reconstruction Using Normal and Reflectance Cues}},
     author={Robin Bruneau and Baptiste Brument and Yvain Quéau and Jean Mélou and François Bernard Lauze and Jean-Denis Durou and Lilian Calvet},
     journal={International Journal of Computer Vision (IJCV)},
