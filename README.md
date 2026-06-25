@@ -229,9 +229,12 @@ node outputs the reconstructed `mesh.obj` in world coordinates.
     title={{Multi-view Surface Reconstruction Using Normal and Reflectance Cues}},
     author={Robin Bruneau and Baptiste Brument and Yvain Quéau and Jean Mélou and François Bernard Lauze and Jean-Denis Durou and Lilian Calvet},
     journal={International Journal of Computer Vision (IJCV)},
-    year={2025},
-    note={to appear},
-    url={https://arxiv.org/abs/2506.04115}
+    volume={134},
+    number={2},
+    pages={69},
+    year={2026},
+    doi={10.1007/s11263-025-02628-8},
+    url={https://doi.org/10.1007/s11263-025-02628-8}
 }
 ```
 
