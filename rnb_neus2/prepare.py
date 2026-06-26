@@ -193,15 +193,26 @@ def prepare_testbed_data(data, output_folder, logger,
             albedo_img = (np.ones_like(normal_img) * max_val).astype(
                 normal_img.dtype)
 
-        # Load mask
-        mask_img = _load_mask_image(
+        # Load mask. The alpha channel must match the bit depth of the image
+        # it is attached to: normals and albedos can come from different
+        # sources (e.g. 8-bit PNG normals + 16-bit EXR albedos), so a single
+        # 0/255 mask pasted onto a 16-bit albedo would make it ~transparent
+        # (alpha 255/65535). Build one mask per target bit depth.
+        normal_mask = _load_mask_image(
             view.get("mask_path"), normal_img.shape[:2], bit_depth)
+
+        albedo_bit_depth = 16 if albedo_img.dtype == np.uint16 else 8
+        if albedo_bit_depth == bit_depth:
+            albedo_mask = normal_mask
+        else:
+            albedo_mask = _load_mask_image(
+                view.get("mask_path"), albedo_img.shape[:2], albedo_bit_depth)
 
         # RGBA = RGB + mask alpha
         normal_rgba = np.concatenate(
-            [normal_img, mask_img[:, :, np.newaxis]], axis=-1)
+            [normal_img, normal_mask[:, :, np.newaxis]], axis=-1)
         albedo_rgba = np.concatenate(
-            [albedo_img, mask_img[:, :, np.newaxis]], axis=-1)
+            [albedo_img, albedo_mask[:, :, np.newaxis]], axis=-1)
 
         filename = "{:05d}.png".format(idx)
         cv2.imwrite(os.path.join(normals_dir, filename), normal_rgba)
