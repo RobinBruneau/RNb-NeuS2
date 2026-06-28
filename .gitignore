@@ -1,0 +1,20 @@
+# Build artifacts
+build*/
+cmake-build-debug/
+*egg-info/
+__pycache__/
+
+# Data & outputs
+data/
+
+# IDE / editor
+.idea/
+.vscode/
+imgui.ini
+
+# Environments
+venv/
+env.yml
+
+# Docker (local only)
+docker/

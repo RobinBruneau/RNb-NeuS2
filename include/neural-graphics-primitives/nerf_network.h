@@ -586,21 +586,30 @@ public:
 		
 		std::vector<float> data(n_elements);
 		std::FILE* fp;
+		
+		// Get the executable directory and construct the full path to the weight files
+		filesystem::path exe_dir = get_executable_dir_global();
+		filesystem::path weights_dir = exe_dir.parent_path() / "utils";
+		
+		filesystem::path weights_file;
 		if (m_density_network_input_width == 32){
-			fp = fopen("utils/mlp_weights_hidden_layer_num_1_hidden_size_32.txt", "r");
+			weights_file = weights_dir / "mlp_weights_hidden_layer_num_1_hidden_size_32.txt";
 		}
 		else if (m_density_network_input_width == 48) {
-			fp = fopen("utils/mlp_weights.txt", "r");
+			weights_file = weights_dir / "mlp_weights.txt";
 		}
 		else {
 			printf("only support input of 32 or 48\n");
 			exit(1);
 		}
 
+		fp = fopen(weights_file.str().c_str(), "r");
+
 		printf("network_params_elements: %d\n", n_elements);
 		if (!fp) {
 			printf("[ERROR] Load SDF MLP weight failed!\n");
-			printf("[ERROR] Please run in the base directory of NeuS2 so that the `utils/mlp_weights.txt` can be found!\n");
+			printf("[ERROR] Tried to load from: %s\n", weights_file.str().c_str());
+			printf("[ERROR] Please ensure the utils directory exists in the project root!\n");
 			exit(1);
 		}
 		else {
