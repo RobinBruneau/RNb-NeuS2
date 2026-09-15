@@ -19,10 +19,6 @@ Using Normal and Reflectance Cues</h1>
 > Run the full pipeline (prepare → scale → train → mesh) directly inside
 > [Meshroom](https://github.com/alicevision/Meshroom) from SfMData inputs — see the
 > [Meshroom Plugin](#meshroom-plugin) section.
->
-> Looking for a fully open-source, CUDA-library-free variant? Check out
-> **[Open-RNb](https://github.com/meshroomHub/mrOpenRNb)** — a PyTorch /
-> tiny-cuda-nn reimplementation integrated into Meshroom.
 
 ## Table of Contents
 
