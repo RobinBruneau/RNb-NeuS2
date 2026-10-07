@@ -68,7 +68,8 @@ def compute_scaling_from_silhouettes(cameras, masks, sphere_scale=1.0,
         center_cam = cam["center"]
 
         com = center_of_mass(mask.astype(np.float64))
-        com_pixel = np.array([com[1], com[0], 1.0])
+        # pixel indices -> NeuS2 pixel coordinates (center of pixel i at i + 0.5, as "K")
+        com_pixel = np.array([com[1] + 0.5, com[0] + 0.5, 1.0])
 
         dir_cam = K_inv @ com_pixel
         dir_cam = dir_cam / np.linalg.norm(dir_cam)
@@ -123,7 +124,8 @@ def _triangulate_scene_center(cameras, masks):
         com = center_of_mass(mask.astype(np.float64))
         if np.any(np.isnan(com)):
             continue
-        dir_cam = K_inv @ np.array([com[1], com[0], 1.0])
+        # pixel indices -> NeuS2 pixel coordinates (center of pixel i at i + 0.5, as "K")
+        dir_cam = K_inv @ np.array([com[1] + 0.5, com[0] + 0.5, 1.0])
         norm = np.linalg.norm(dir_cam)
         if norm < 1e-12:
             continue

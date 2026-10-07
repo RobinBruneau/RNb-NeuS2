@@ -10,7 +10,7 @@ import warnings
 
 import numpy as np
 
-from .base import BaseDataLoader
+from .base import ALICEVISION_TO_NEUS2_PIXEL_OFFSET, BaseDataLoader
 
 # Y/Z flip: AliceVision Y-down/Z-forward -> Y-up world
 WORLD_CORRECTION = np.diag([1.0, -1.0, -1.0]).astype(np.float64)
@@ -69,10 +69,11 @@ def parse_sfm_json(data, sfm_dir=None):
                     "sensorWidth not found, using default 36.0mm")
             fx = fy = focal_mm * width / sensor_width
 
-        # Principal point (offset from image center)
+        # Principal point (offset from image center), converted from the AliceVision pixel convention to
+        # the NeuS2 one (see ALICEVISION_TO_NEUS2_PIXEL_OFFSET)
         pp = intr.get("principalPoint", ["0", "0"])
-        cx = width / 2.0 + float(pp[0])
-        cy = height / 2.0 + float(pp[1])
+        cx = width / 2.0 + float(pp[0]) + ALICEVISION_TO_NEUS2_PIXEL_OFFSET
+        cy = height / 2.0 + float(pp[1]) + ALICEVISION_TO_NEUS2_PIXEL_OFFSET
 
         # Rotation cam2world (row-major flat)
         rotation_flat = [float(r) for r in transform["rotation"]]

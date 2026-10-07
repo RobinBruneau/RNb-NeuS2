@@ -8,7 +8,7 @@ import os
 
 import numpy as np
 
-from .base import BaseDataLoader
+from .base import ALICEVISION_TO_NEUS2_PIXEL_OFFSET, BaseDataLoader
 
 # Y/Z flip: AliceVision Y-down/Z-forward -> Y-up world
 FLIP_YZ = np.array([
@@ -36,12 +36,17 @@ def _extract_intrinsics(intrinsic, camera_module, numeric_module):
         K[0, 2] = numeric_module.getX(pp)
         K[1, 2] = numeric_module.getY(pp)
     else:
+        # getOffset() is relative to the image center: use the absolute principal point
         scale = intrinsic.getScale()
-        offset = intrinsic.getOffset()
+        pp = intrinsic.getPrincipalPoint()
         K[0, 0] = scale.x()
         K[1, 1] = scale.y()
-        K[0, 2] = offset.x()
-        K[1, 2] = offset.y()
+        K[0, 2] = numeric_module.getX(pp)
+        K[1, 2] = numeric_module.getY(pp)
+
+    # AliceVision pixel convention -> NeuS2 (see ALICEVISION_TO_NEUS2_PIXEL_OFFSET)
+    K[0, 2] += ALICEVISION_TO_NEUS2_PIXEL_OFFSET
+    K[1, 2] += ALICEVISION_TO_NEUS2_PIXEL_OFFSET
 
     return K
 
