@@ -1,4 +1,4 @@
-__version__ = "2.0"
+__version__ = "2.1"
 
 import os
 import sys
@@ -88,11 +88,11 @@ class RNbNeuS2(desc.Node):
         desc.ChoiceParam(
             name="scalingMode",
             label="Scaling Mode",
-            description="Scene normalization: auto prefers silhouettes when "
-                        "masks are available, then falls back to landmarks "
-                        "(pcd) or camera centres.",
-            values=["auto", "pcd", "silhouettes", "silhouettes_v2",
-                    "cameras", "none"],
+            description="Scene normalization: silhouettes uses the minimum "
+                        "sphere enclosing the mask silhouettes of every view; "
+                        "auto uses the silhouettes when masks are available, "
+                        "then falls back to landmarks (pcd) or camera centres.",
+            values=["auto", "pcd", "silhouettes", "cameras", "none"],
             value="auto",
             exclusive=True,
         ),
@@ -102,6 +102,16 @@ class RNbNeuS2(desc.Node):
             description="Target scale within unit sphere after normalization.",
             value=1.0,
             range=(0.1, 2.0, 0.1),
+        ),
+        desc.IntParam(
+            name="silhouetteMargin",
+            label="Silhouette Margin",
+            description="Margin (pixels) kept between the silhouettes and the "
+                        "projection of the bounding sphere (silhouettes "
+                        "scaling).",
+            value=20,
+            range=(0, 200, 1),
+            advanced=True,
         ),
         desc.FloatParam(
             name="warmupRatio",
@@ -235,6 +245,7 @@ class RNbNeuS2(desc.Node):
                 mesh_resolution=chunk.node.meshResolution.value,
                 scaling_mode=chunk.node.scalingMode.value,
                 sphere_scale=chunk.node.sphereScale.value,
+                margin_px=chunk.node.silhouetteMargin.value,
                 warmup_ratio=chunk.node.warmupRatio.value,
                 mask_weight=chunk.node.maskWeight.value,
                 super_normal=chunk.node.superNormal.value,
