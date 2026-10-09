@@ -145,7 +145,7 @@ python run_pipeline.py --input ./data/FOLDER --testbed ./build/testbed \
 ```plaintext
 --max-steps INT          # Total training steps (default: 10000)
 --mesh-resolution INT    # Marching cubes resolution (default: 1024; use 512 if low on memory)
---scaling-mode MODE      # auto | pcd | silhouettes | silhouettes_v2 | cameras | none (default: auto)
+--scaling-mode MODE      # auto | pcd | silhouettes | cameras | none (default: auto)
 --sphere-scale FLOAT     # Target sphere radius after normalization (default: 1.0)
 --mask-weight FLOAT      # Weight of the mask loss (default: 1.0)
 --l1                     # Use L1 color loss (L2 by default)

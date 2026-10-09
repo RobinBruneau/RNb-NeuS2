@@ -34,77 +34,8 @@ def compute_unit_sphere_scaling(points_3d, sphere_scale=1.0):
     return scene_center, scale_factor, scale_matrix
 
 
-def compute_scaling_from_silhouettes(cameras, masks, sphere_scale=1.0,
-                                     fg_area_ratio=1.5):
-    """Compute (scene_center, scale_factor) from silhouettes (MVSCPS).
-
-    Center via mask center-of-mass triangulation.
-    Radius via projected sphere area matching.
-
-    Args:
-        cameras: list of dicts with fx, fy, cx, cy,
-                 R_cam2world (3x3), center (3,).
-        masks: list of (H, W) float arrays in [0, 1].
-        sphere_scale: target sphere radius.
-        fg_area_ratio: ratio of sphere area to foreground area.
-
-    Returns:
-        scene_center: (3,)
-        scale_factor: float
-    """
-    from scipy.ndimage import center_of_mass
-
-    A = np.zeros((3, 3))
-    b = np.zeros(3)
-
-    cam_data = []
-    for cam, mask in zip(cameras, masks):
-        fx, fy = cam["fx"], cam["fy"]
-        cx, cy = cam["cx"], cam["cy"]
-        K = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]])
-        K_inv = np.linalg.inv(K)
-
-        R_c2w = cam["R_cam2world"]
-        center_cam = cam["center"]
-
-        com = center_of_mass(mask.astype(np.float64))
-        com_pixel = np.array([com[1], com[0], 1.0])
-
-        dir_cam = K_inv @ com_pixel
-        dir_cam = dir_cam / np.linalg.norm(dir_cam)
-
-        m = R_c2w @ dir_cam
-        o = center_cam
-
-        I_mmT = np.eye(3) - np.outer(m, m)
-        A += I_mmT
-        b += I_mmT @ o
-
-        cam_data.append((fx, fy, R_c2w, center_cam, mask))
-
-    scene_center = np.linalg.lstsq(A, b, rcond=None)[0]
-
-    total_fg_area = 0
-    sum_fz2 = 0
-    for fx, fy, R_c2w, center_cam, mask in cam_data:
-        total_fg_area += mask.sum()
-        R_w2c = R_c2w.T
-        center_in_cam = R_w2c @ (scene_center - center_cam)
-        Z = center_in_cam[2]
-        if abs(Z) < 1e-8:
-            Z = 1e-8
-        sum_fz2 += (fx / Z) ** 2
-
-    radius = np.sqrt(fg_area_ratio * total_fg_area / (np.pi * sum_fz2))
-    if radius < 1e-8:
-        radius = 1.0
-    scale_factor = float(sphere_scale / radius)
-
-    return scene_center, scale_factor
-
-
 def _triangulate_scene_center(cameras, masks):
-    """Triangulate scene center from mask centers of mass (shared by v1 and v2).
+    """Triangulate scene center from mask centers of mass.
 
     Returns:
         scene_center: (3,) world coordinates
@@ -123,7 +54,8 @@ def _triangulate_scene_center(cameras, masks):
         com = center_of_mass(mask.astype(np.float64))
         if np.any(np.isnan(com)):
             continue
-        dir_cam = K_inv @ np.array([com[1], com[0], 1.0])
+        # pixel indices -> NeuS2 pixel coordinates (center of pixel i at i + 0.5, as "K")
+        dir_cam = K_inv @ np.array([com[1] + 0.5, com[0] + 0.5, 1.0])
         norm = np.linalg.norm(dir_cam)
         if norm < 1e-12:
             continue
@@ -142,8 +74,8 @@ def _triangulate_scene_center(cameras, masks):
         return centers.mean(axis=0)
 
 
-def compute_scaling_from_silhouettes_v2(cameras, masks, sphere_scale=1.0,
-                                        margin_px=20, percentile=99):
+def compute_scaling_from_silhouettes(cameras, masks, sphere_scale=1.0,
+                                     margin_px=20, percentile=99):
     """Compute (scene_center, scale_factor) by optimizing minimum enclosing sphere.
 
     Finds the smallest 3D sphere whose projection (ellipse) contains all mask

@@ -36,13 +36,12 @@ def main():
     parser.add_argument("--mesh-resolution", type=int, default=1024,
                         help="Marching cubes resolution (default: 1024)")
     parser.add_argument("--scaling-mode", default="auto",
-                        choices=["auto", "pcd", "silhouettes",
-                                 "silhouettes_v2", "cameras", "none"],
+                        choices=["auto", "pcd", "silhouettes", "cameras", "none"],
                         help="Scene normalization mode (default: auto)")
     parser.add_argument("--sphere-scale", type=float, default=1.0,
                         help="Target sphere radius (default: 1.0)")
     parser.add_argument("--margin-px", type=int, default=20,
-                        help="Pixel margin for silhouettes_v2 (default: 20)")
+                        help="Pixel margin for the silhouettes mode (default: 20)")
     parser.add_argument("--warmup-ratio", type=float, default=0.1,
                         help="Phase 1 ratio for albedo mode (default: 0.1)")
     parser.add_argument("--mask-weight", type=float, default=1.0,

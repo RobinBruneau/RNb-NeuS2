@@ -61,7 +61,8 @@ binary from this repository.
 | `inputMaskFolder` | Mask Folder | — | Folder of masks named by `viewId` (e.g. `12345.png`). Ignored when Mask SfMData is provided. |
 | `maxSteps` | Max Training Steps | 15000 | Total iterations for stage 2 (stage 1 uses 2/3 of this). |
 | `meshResolution` | Mesh Resolution | 1024 | Marching cubes resolution for the final mesh. |
-| `scalingMode` | Scaling Mode | `auto` | Scene normalization: `auto` prefers silhouettes when masks exist, then falls back to landmarks (`pcd`) or camera centers. One of `auto`, `pcd`, `silhouettes`, `silhouettes_v2`, `cameras`, `none`. |
+| `scalingMode` | Scaling Mode | `auto` | Scene normalization: `auto` prefers silhouettes when masks exist, then falls back to landmarks (`pcd`) or camera centers. One of `auto`, `pcd`, `silhouettes` (minimum sphere enclosing the silhouettes), `cameras`, `none`. |
+| `silhouetteMargin` | Silhouette Margin | `20` | Margin (pixels) between the silhouettes and the projection of the bounding sphere (`silhouettes` scaling). Advanced. |
 | `sphereScale` | Sphere Scale | 1.0 | Target scale within the unit sphere after normalization. |
 | `warmupRatio` | Phase 1 Ratio | 0.1 | Fraction of `maxSteps` for the geometry-only warmup (albedo mode only). |
 | `maskWeight` | Mask Weight | 1.0 | Weight of the mask loss. |

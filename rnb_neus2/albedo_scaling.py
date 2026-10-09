@@ -82,10 +82,13 @@ def load_cameras_from_sfmdata(sfmdata_path, albedo_images, logger=None):
 
         K = np.eye(3, dtype=np.float32)
         try:
+            # absolute principal point (getOffset() is relative to the image center), converted from the
+            # AliceVision pixel convention to the NeuS2 one (center of pixel i at i + 0.5)
             K[0, 0] = intrinsic.getScale().x()
             K[1, 1] = intrinsic.getScale().y()
-            K[0, 2] = intrinsic.getOffset().x()
-            K[1, 2] = intrinsic.getOffset().y()
+            pp = intrinsic.getPrincipalPoint()
+            K[0, 2] = pp[0] + 0.5
+            K[1, 2] = pp[1] + 0.5
         except Exception:
             K[0, 0] = K[1, 1] = 500.0
             K[0, 2] = K[1, 2] = 256.0
@@ -257,7 +260,8 @@ def compute_albedo_scale_ratios(albedo_path, camera_source, mesh_path,
 
         mask = masks[cam_id].astype(bool)
         ind_mask = np.where(mask)
-        pixels = np.stack([ind_mask[1], ind_mask[0]], axis=1)
+        # pixel centers in the NeuS2 convention of K (center of pixel i at i + 0.5)
+        pixels = np.stack([ind_mask[1], ind_mask[0]], axis=1) + 0.5
         albedo_values = albedos[cam_id, ind_mask[0], ind_mask[1], :]
 
         current_K = K_array[cam_id]
@@ -335,7 +339,8 @@ def compute_albedo_scale_ratios(albedo_path, camera_source, mesh_path,
             )
             pts_proj = (neighbor_K @ pts_cam).T
             pts_proj /= pts_proj[:, 2][:, None]
-            pts_proj = pts_proj[:, :2]
+            # NeuS2 pixel coordinates (K) -> pixel indices of the interpolation grid
+            pts_proj = pts_proj[:, :2] - 0.5
 
             valid = (
                 (0 <= pts_proj[:, 1]) & (pts_proj[:, 1] < h - 1)

@@ -15,7 +15,6 @@ import numpy as np
 from .scaling import (
     compute_unit_sphere_scaling,
     compute_scaling_from_silhouettes,
-    compute_scaling_from_silhouettes_v2,
     extract_cameras_for_scaling,
 )
 
@@ -57,22 +56,13 @@ def _compute_scaling(data, scaling_mode, sphere_scale, margin_px, logger):
     scaled = False
 
     # Try silhouettes first (more reliable for PS/neural reconstruction)
-    if not scaled and scaling_mode in ("auto", "silhouettes", "silhouettes_v2"):
+    if not scaled and scaling_mode in ("auto", "silhouettes"):
         sil_cams, sil_masks = extract_cameras_for_scaling(data)
         if sil_cams and sil_masks:
-            if scaling_mode in ("auto", "silhouettes_v2"):
-                logger.info("Scaling from silhouettes_v2 (min enclosing sphere): {} views".format(
-                    len(sil_cams)))
-                scene_center, scale_factor = (
-                    compute_scaling_from_silhouettes_v2(
-                        sil_cams, sil_masks, sphere_scale=sphere_scale,
-                        margin_px=margin_px))
-            else:
-                logger.info("Scaling from silhouettes: {} views".format(
-                    len(sil_cams)))
-                scene_center, scale_factor = (
-                    compute_scaling_from_silhouettes(
-                        sil_cams, sil_masks, sphere_scale=sphere_scale))
+            logger.info("Scaling from silhouettes (min enclosing sphere): {} views".format(
+                len(sil_cams)))
+            scene_center, scale_factor = compute_scaling_from_silhouettes(
+                sil_cams, sil_masks, sphere_scale=sphere_scale, margin_px=margin_px)
             scene_center = scene_center.astype(np.float32)
             scale_matrix = np.eye(4, dtype=np.float32)
             for i in range(3):
@@ -122,9 +112,9 @@ def prepare_testbed_data(data, output_folder, logger,
         data: Standardized dict from any dataloader.
         output_folder: Where to write transform.json + image folders.
         logger: Logger with .info() method.
-        scaling_mode: "auto", "pcd", "silhouettes", "silhouettes_v2", "cameras", "none".
+        scaling_mode: "auto", "pcd", "silhouettes", "cameras", "none".
         sphere_scale: Target sphere radius.
-        margin_px: Pixel margin for silhouettes_v2 mode.
+        margin_px: Pixel margin for the silhouettes mode.
 
     Returns:
         dict with scene_center, scale_factor, scale_matrix, n2w, n_frames.
