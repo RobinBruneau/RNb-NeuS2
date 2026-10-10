@@ -117,7 +117,8 @@ def prepare_testbed_data(data, output_folder, logger,
         margin_px: Pixel margin for the silhouettes mode.
 
     Returns:
-        dict with scene_center, scale_factor, scale_matrix, n2w, n_frames.
+        dict with scene_center, scale_factor, scale_matrix, n2w, n_frames and frames_info (per testbed frame:
+        image name, pose_id, albedo_view_id, albedo_path, mask_path; also written to frames.json).
     """
     scene_center, scale_factor, scale_matrix = _compute_scaling(
         data, scaling_mode, sphere_scale, margin_px, logger)
@@ -132,6 +133,7 @@ def prepare_testbed_data(data, output_folder, logger,
     image_height = data["image_height"]
 
     frames = []
+    frames_info = []
     for idx, view in enumerate(data["views"]):
         c2w = view["c2w"].copy()
 
@@ -179,6 +181,7 @@ def prepare_testbed_data(data, output_folder, logger,
                 if len(albedo_img.shape) == 3 and albedo_img.shape[2] == 4:
                     albedo_img = albedo_img[:, :, :3]
 
+        albedo_loaded = albedo_img is not None
         if albedo_img is None:
             albedo_img = (np.ones_like(normal_img) * max_val).astype(
                 normal_img.dtype)
@@ -214,6 +217,14 @@ def prepare_testbed_data(data, output_folder, logger,
             "transform_matrix": c2w.tolist(),
             "intrinsic_matrix": K.tolist(),
         })
+        # source of the frame: maps the testbed image name back to the input views (albedo export)
+        frames_info.append({
+            "name": os.path.splitext(filename)[0],
+            "pose_id": view.get("pose_id"),
+            "albedo_view_id": view.get("albedo_view_id"),
+            "albedo_path": albedo_path if albedo_loaded else None,
+            "mask_path": view.get("mask_path"),
+        })
 
     if not frames:
         raise RuntimeError("No valid frames could be processed")
@@ -237,6 +248,8 @@ def prepare_testbed_data(data, output_folder, logger,
     with open(transform_path, "w") as f:
         json.dump(transform_data, f, indent=4)
     logger.info("Saved transform.json to {}".format(transform_path))
+    with open(os.path.join(output_folder, "frames.json"), "w") as f:
+        json.dump(frames_info, f, indent=1)
 
     return {
         "scene_center": scene_center,
@@ -244,4 +257,5 @@ def prepare_testbed_data(data, output_folder, logger,
         "scale_matrix": scale_matrix,
         "n2w": n2w,
         "n_frames": len(frames),
+        "frames_info": frames_info,
     }

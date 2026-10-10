@@ -60,8 +60,14 @@ def main():
                         help="Use L1 norm for color loss")
     parser.add_argument("--no-rgbplus", action="store_true",
                         help="Disable RGB+ normalization")
-    parser.add_argument("--n-samples", type=int, default=2000,
-                        help="Samples for albedo scaling (default: 2000)")
+    parser.add_argument("--n-samples", type=int, default=20000,
+                        help="Pixels sampled per view for albedo scaling (default: 20000)")
+    parser.add_argument("--harmonized-albedo-folder", default="",
+                        help="With --has-albedo: write the albedo maps scaled by the training scales as "
+                             "<viewId>.exr in this folder, for texturing")
+    parser.add_argument("--harmonized-albedo-sfm", default="",
+                        help="Copy of the albedo SfMData pointing to the harmonized maps "
+                             "(default: <harmonized-albedo-folder>/albedoHarmonized.sfm)")
     parser.add_argument("--seed", type=int, default=0,
                         help="Random seed (default: 0)")
 
@@ -88,6 +94,8 @@ def main():
         mask_sfm_path=args.mask_sfm,
         mask_folder_path=args.mask_folder,
         n_samples=args.n_samples,
+        harmonized_albedo_folder=args.harmonized_albedo_folder,
+        harmonized_albedo_sfm=args.harmonized_albedo_sfm,
     )
 
 

@@ -9,6 +9,7 @@ All dataloaders return a standardized dict:
                 "K": np.array (4, 4),         intrinsic matrix, NeuS2 pixel convention
                 "normal_path": str,           path to normal image
                 "albedo_path": str or None,   path to albedo image
+                "albedo_view_id": str or None, viewId of the albedo SfMData view (SfMData loaders)
                 "mask_path": str or None,     path to mask image
                 "pose_id": str,               unique identifier
             },

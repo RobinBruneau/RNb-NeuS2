@@ -182,8 +182,10 @@ class SfmJsonDataLoader(BaseDataLoader):
 
             # Albedo path
             albedo_path = None
+            albedo_view_id = None
             if pose_id in albedo_by_pose:
                 albedo_path = albedo_by_pose[pose_id]["image_path"]
+                albedo_view_id = str(albedo_by_pose[pose_id]["view_id"])
 
             # Mask path
             mask_path = None
@@ -204,6 +206,7 @@ class SfmJsonDataLoader(BaseDataLoader):
                 "K": K,
                 "normal_path": cam["image_path"],
                 "albedo_path": albedo_path,
+                "albedo_view_id": albedo_view_id,
                 "mask_path": mask_path,
                 "pose_id": pose_id,
             })

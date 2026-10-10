@@ -105,13 +105,20 @@ def run_two_stage(testbed_path, data_dir, max_steps, common_flags,
 
 def run_with_albedo_scaling(testbed_path, data_dir, max_steps,
                             common_flags, resolution=1024,
-                            warmup_ratio=0.1, n_samples=2000,
+                            warmup_ratio=0.1, n_samples=20000,
                             logger=None):
-    """Two-phase workflow with albedo scaling between phases."""
+    """Two-phase workflow with albedo scaling between phases.
+
+    Returns:
+        dict albedo image stem ("00003") -> RGB scale applied to the albedos of phase 3 (also written with the
+        pairwise statistics to <data_dir>/albedo_scales.json).
+    """
     if logger is None:
         logger = SimpleLogger()
 
-    from .albedo_scaling import compute_albedo_scale_ratios, scale_and_save_albedos
+    import json
+
+    from .albedo_scaling import compute_albedo_scale_ratios, list_albedo_names, scale_and_save_albedos
 
     warmup_steps = max(int(max_steps * warmup_ratio), 1000)
 
@@ -147,13 +154,18 @@ def run_with_albedo_scaling(testbed_path, data_dir, max_steps,
     scaled_albedo_dir = os.path.join(data_dir, "albedos_scaled")
     transform_json = os.path.join(data_dir, "transform.json")
 
-    scale_ratios = compute_albedo_scale_ratios(
+    scale_ratios, report = compute_albedo_scale_ratios(
         albedo_path=albedo_dir,
         camera_source=transform_json,
         mesh_path=mesh_path,
         n_samples=n_samples,
         logger=logger,
+        return_report=True,
     )
+    names = list_albedo_names(albedo_dir)
+    scales_by_name = {os.path.splitext(name)[0]: scale_ratios[k].tolist() for k, name in enumerate(names)}
+    with open(os.path.join(data_dir, "albedo_scales.json"), "w") as f:
+        json.dump(report, f, indent=1)
 
     scale_and_save_albedos(
         albedo_path=albedo_dir,
@@ -173,6 +185,7 @@ def run_with_albedo_scaling(testbed_path, data_dir, max_steps,
     logger.info("=== Phase 3: Full training with scaled albedos ===")
     run_two_stage(testbed_path, data_dir, max_steps, common_flags,
                   resolution=resolution, logger=logger)
+    return scales_by_name
 
 
 def postprocess_mesh(data_dir, output_mesh_path, logger=None):
@@ -227,7 +240,9 @@ def run_full_pipeline(input_path, testbed_path, output_dir,
                       super_normal=False, use_l1=False,
                       use_rgb_plus=True, has_albedo=False,
                       albedo_sfm_path="", mask_sfm_path="",
-                      mask_folder_path="", n_samples=2000,
+                      mask_folder_path="", n_samples=20000,
+                      harmonized_albedo_folder="",
+                      harmonized_albedo_sfm="",
                       logger=None):
     """Run the complete RNb-NeuS2 pipeline.
 
@@ -248,14 +263,27 @@ def run_full_pipeline(input_path, testbed_path, output_dir,
         albedo_sfm_path: Path to albedo SfMData.
         mask_sfm_path: Path to mask SfMData.
         mask_folder_path: Path to mask folder.
-        n_samples: Samples for albedo scaling.
+        n_samples: Pixels sampled per view for albedo scaling.
+        harmonized_albedo_folder: If set (with albedos), write the input albedo maps scaled by the phase-3 scales
+            as linear float EXR <viewId>.exr in this folder, for texturing (see albedo_export).
+        harmonized_albedo_sfm: Path of the copy of the albedo SfMData pointing to these maps.
         logger: Logger instance.
+
+    Returns:
+        Path of the output mesh.
     """
     if logger is None:
         logger = SimpleLogger()
 
     from .dataloaders import load_data
     from .prepare import prepare_testbed_data
+
+    export_albedos = bool(has_albedo and albedo_sfm_path and harmonized_albedo_folder)
+    if export_albedos:
+        from .albedo_export import is_json_sfm
+        if not is_json_sfm(albedo_sfm_path):
+            logger.warning("The albedo SfMData is not JSON: the harmonized albedo maps will not be exported")
+            export_albedos = False
 
     # 1. Load data
     logger.info("=== Loading data from {} ===".format(input_path))
@@ -270,7 +298,7 @@ def run_full_pipeline(input_path, testbed_path, output_dir,
     # 2. Prepare testbed data
     data_dir = os.path.join(output_dir, "prepared_data")
     logger.info("=== Preparing testbed data ===")
-    prepare_testbed_data(
+    prepared = prepare_testbed_data(
         data, data_dir, logger,
         scaling_mode=scaling_mode,
         sphere_scale=sphere_scale,
@@ -288,10 +316,18 @@ def run_full_pipeline(input_path, testbed_path, output_dir,
 
     # 4. Run testbed
     if has_albedo:
-        run_with_albedo_scaling(
+        scales_by_name = run_with_albedo_scaling(
             testbed_path, data_dir, max_steps, common_flags,
             resolution=mesh_resolution, warmup_ratio=warmup_ratio,
             n_samples=n_samples, logger=logger)
+        if export_albedos:
+            from .albedo_export import export_harmonized_albedos
+            logger.info("=== Exporting the harmonized albedo maps ===")
+            export_harmonized_albedos(
+                albedo_sfm_path, prepared["frames_info"], scales_by_name,
+                harmonized_albedo_folder, harmonized_albedo_sfm or os.path.join(
+                    harmonized_albedo_folder, "albedoHarmonized.sfm"),
+                logger=logger)
     else:
         run_two_stage(
             testbed_path, data_dir, max_steps, common_flags,

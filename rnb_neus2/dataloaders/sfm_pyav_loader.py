@@ -159,13 +159,15 @@ class SfmPyavDataLoader(BaseDataLoader):
             # Normal path
             normal_path = view.getImage().getImagePath()
 
-            # Albedo path
+            # Albedo path (albedo view with viewId == poseId)
             albedo_path = None
+            albedo_view_id = None
             if albedo_sfm is not None:
                 albedo_views = albedo_sfm.getViews()
                 if pose_id in albedo_views:
                     albedo_view = albedo_views[pose_id]
                     albedo_path = albedo_view.getImage().getImagePath()
+                    albedo_view_id = str(pose_id)
 
             # Mask path
             mask_path = self._find_mask_path(
@@ -176,6 +178,7 @@ class SfmPyavDataLoader(BaseDataLoader):
                 "K": K,
                 "normal_path": normal_path,
                 "albedo_path": albedo_path,
+                "albedo_view_id": albedo_view_id,
                 "mask_path": mask_path,
                 "pose_id": str(pose_id),
             })
