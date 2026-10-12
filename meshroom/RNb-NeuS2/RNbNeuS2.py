@@ -1,4 +1,4 @@
-__version__ = "2.1"
+__version__ = "2.2"
 
 import os
 import sys
@@ -13,7 +13,8 @@ class RNbNeuS2(desc.Node):
 
     Accepts SfMData files for normals, albedos, and masks.
     When albedos are provided, uses two-phase training with
-    automatic albedo scaling via multi-view consistency.
+    automatic albedo scaling via multi-view consistency, and exports
+    the scaled (harmonized) albedo maps for texturing.
     Exports mesh in world coordinates.
     """
 
@@ -35,9 +36,14 @@ class RNbNeuS2(desc.Node):
     **Processing:**
     - Internally converts SfMData to transform.json format
     - Two-stage training: stage 1 without opti-lights, stage 2 with opti-lights
-    - Optional albedo scaling via multi-view consistency
+    - Albedo scaling (with albedos): one scale per view and channel, solved
+      jointly over all the view pairs that see the same surface points
 
-    **Output:** OBJ mesh in world coordinates.
+    **Outputs:** OBJ mesh in world coordinates (AliceVision mesh convention,
+    as Meshing/MeshFiltering). With albedos, the albedo maps scaled as for
+    training, as linear float EXR named <viewId>.exr, and an SfMData pointing
+    to them: connect them to Texturing (input, imagesFolder) to texture the
+    mesh with the albedo.
     """
 
     inputs = [
@@ -186,6 +192,26 @@ class RNbNeuS2(desc.Node):
             semantic="mesh",
             group="",
         ),
+        desc.File(
+            name="outputAlbedoFolder",
+            label="Harmonized Albedo Folder",
+            description="Albedo maps scaled by the per-view scales used for "
+                        "training, as linear float EXR named <viewId>.exr "
+                        "(extended a few pixels outside the masks). Images "
+                        "Folder of Texturing. Written only when an Albedo "
+                        "Maps SfMData is given.",
+            value="{nodeCacheFolder}/albedo",
+            enabled=lambda node: bool(node.inputAlbedoSfm.value),
+        ),
+        desc.File(
+            name="outputAlbedoSfm",
+            label="Harmonized Albedo SfMData",
+            description="Copy of the Albedo Maps SfMData whose views point to "
+                        "the harmonized albedo maps. Input of Texturing. "
+                        "Written only when an Albedo Maps SfMData is given.",
+            value="{nodeCacheFolder}/albedoHarmonized.sfm",
+            enabled=lambda node: bool(node.inputAlbedoSfm.value),
+        ),
     ]
 
     def processChunk(self, chunk):
@@ -255,6 +281,10 @@ class RNbNeuS2(desc.Node):
                 albedo_sfm_path=albedo_sfm,
                 mask_sfm_path=mask_sfm,
                 mask_folder_path=mask_folder if not mask_sfm else "",
+                harmonized_albedo_folder=(
+                    chunk.node.outputAlbedoFolder.value if albedo_sfm else ""),
+                harmonized_albedo_sfm=(
+                    chunk.node.outputAlbedoSfm.value if albedo_sfm else ""),
                 logger=chunk.logger,
             )
 

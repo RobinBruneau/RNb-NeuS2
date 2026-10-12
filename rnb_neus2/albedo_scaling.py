@@ -1,7 +1,11 @@
 """Albedo scaling via multi-view consistency.
 
-Computes per-view scale ratios by ray-tracing through a mesh and
-comparing albedo values at shared surface points between neighbors.
+Photometric-stereo albedo maps are known per view up to a per-channel scale (e.g. the light powers of each pose).
+The per-view scales are estimated by ray-tracing masked pixels of every view onto a mesh and comparing their albedo
+with every other view that sees the same surface point (facing, unoccluded, inside both masks). The median log
+ratio of every overlapping view pair gives one equation log s_i - log s_j = -median(log a_i - log a_j); the
+equations are solved jointly (weighted least squares), so the result does not depend on the view order and loops
+of views are closed. Views without overlap keep the scale 1.
 
 Supports camera loading from:
 - transform.json (with automatic n2w world-space conversion)
@@ -18,9 +22,13 @@ import cv2
 import numpy as np
 import trimesh
 from pathlib import Path
-from scipy.interpolate import RegularGridInterpolator
 
 from .image_io import load_image, save_image
+
+# Minimum number of surface points seen by both views for a view pair to constrain the scales
+MIN_PAIR_SAMPLES = 300
+# Albedo values kept for the ratios: not empty, not clipped
+MIN_ALBEDO, MAX_ALBEDO = 1e-4, 0.999
 
 
 def load_K_Rt_from_P(P):
@@ -214,206 +222,268 @@ def load_cameras(camera_source, albedo_images, logger=None):
             "Unsupported camera format: {}".format(camera_path.suffix))
 
 
-def compute_albedo_scale_ratios(albedo_path, camera_source, mesh_path,
-                                n_samples=2000, logger=None):
-    """Compute per-view albedo scaling ratios via multi-view consistency.
+def list_albedo_names(albedo_path):
+    """Albedo image names of a folder, in the order of the scale ratios (sorted)."""
+    return sorted(f for f in os.listdir(albedo_path) if f.lower().endswith((".png", ".exr")))
+
+
+def view_groups(n_views, edges):
+    """Connected components (lists of view indices) of the view-overlap graph."""
+    parent = list(range(n_views))
+
+    def root(k):
+        while parent[k] != k:
+            parent[k] = parent[parent[k]]
+            k = parent[k]
+        return k
+
+    for i, j in edges:
+        parent[root(i)] = root(j)
+    groups = {}
+    for k in range(n_views):
+        groups.setdefault(root(k), []).append(k)
+    return list(groups.values())
+
+
+def solve_pairwise_log_scales(pair_log_ratios, n_views, min_pair_samples=MIN_PAIR_SAMPLES):
+    """Per-view, per-channel scales s such that s_i a_i ~ s_j a_j on the points seen by views i and j.
+
+    Every view pair with at least min_pair_samples samples gives one equation
+    log s_i - log s_j = -median(log a_i - log a_j), weighted by sqrt(n_samples). The equations are solved jointly
+    (least squares), with the geometric mean of the scales fixed to 1 in every connected group of overlapping views.
+    Views without any pair keep the scale 1.
+
+    Args:
+        pair_log_ratios: dict (i, j) with i < j -> (n, 3) array of log a_i - log a_j.
+        n_views: number of views.
 
     Returns:
-        (n_views, 3) array of scale factors.
+        (scales (n_views, 3), pairs: list of (i, j, n_samples, median log ratio (3,)), unconstrained view indices).
+    """
+    rows, rhs, weights, pairs = [], [], [], []
+    for (i, j), log_ratios in sorted(pair_log_ratios.items()):
+        log_ratios = np.asarray(log_ratios).reshape(-1, 3)
+        if len(log_ratios) < min_pair_samples:
+            continue
+        median = np.median(log_ratios, axis=0)
+        row = np.zeros(n_views)
+        row[i], row[j] = 1.0, -1.0
+        rows.append(row)
+        rhs.append(-median)
+        weights.append(np.sqrt(len(log_ratios)))
+        pairs.append((i, j, len(log_ratios), median))
+    constrained = sorted({k for i, j, _, _ in pairs for k in (i, j)})
+    unconstrained = [k for k in range(n_views) if k not in constrained]
+    scales = np.ones((n_views, 3))
+    if not pairs:
+        return scales, pairs, unconstrained
+    weights = np.array(weights)[:, None]
+    a = np.array(rows)[:, constrained] * weights
+    b = np.array(rhs) * weights
+    # gauge: sum of the log scales = 0 in every group of overlapping views
+    index = {k: c for c, k in enumerate(constrained)}
+    groups = view_groups(len(constrained), [(index[i], index[j]) for i, j, _, _ in pairs])
+    gauge = np.zeros((len(groups), len(constrained)))
+    for g, group in enumerate(groups):
+        gauge[g, group] = 10.0 * weights.max()
+    a = np.vstack([a, gauge])
+    b = np.vstack([b, np.zeros((len(groups), 3))])
+    scales[constrained] = np.exp(np.linalg.lstsq(a, b, rcond=None)[0])
+    return scales, pairs, unconstrained
+
+
+def pair_mismatch(pairs, scales):
+    """Median over the view pairs of the mean (over channels) |log ratio|, before and after scaling, in %."""
+    if not pairs:
+        return 0.0, 0.0
+    before = [np.abs(median).mean() for _, _, _, median in pairs]
+    after = [np.abs(median + np.log(scales[i]) - np.log(scales[j])).mean() for i, j, _, median in pairs]
+    return float(100.0 * (np.exp(np.median(before)) - 1.0)), float(100.0 * (np.exp(np.median(after)) - 1.0))
+
+
+def _bilinear(image, xy):
+    """Bilinear lookup of an (h, w, c) image at (n, 2) pixel-index coordinates inside [0, w-1] x [0, h-1]."""
+    h, w = image.shape[:2]
+    x0 = np.clip(np.floor(xy[:, 0]).astype(int), 0, w - 2)
+    y0 = np.clip(np.floor(xy[:, 1]).astype(int), 0, h - 2)
+    fx = (xy[:, 0] - x0)[:, None]
+    fy = (xy[:, 1] - y0)[:, None]
+    top = image[y0, x0] * (1 - fx) + image[y0, x0 + 1] * fx
+    bottom = image[y0 + 1, x0] * (1 - fx) + image[y0 + 1, x0 + 1] * fx
+    return top * (1 - fy) + bottom * fy
+
+
+def collect_pair_log_ratios(mesh, albedos, masks, K_array, R_c2w_array, centers_array, n_samples=20000,
+                            max_angle=60.0, seed=0):
+    """Log albedo ratios of every view pair on shared surface points.
+
+    For every view i, n_samples masked pixels are ray-cast onto the mesh (first hit, viewing angle <= max_angle);
+    each hit is compared with every other view j that sees it: in front of j and inside its image, facing j
+    (angle <= max_angle), unoccluded, inside j's mask, with valid (non-empty, non-clipped) albedos in both views.
+
+    Args:
+        mesh: trimesh.Trimesh in the camera world frame.
+        albedos: (V, h, w, 3) float albedo maps; masks: (V, h, w) bool.
+        K_array: (V, 3, 3) intrinsics in the NeuS2 pixel convention (center of pixel i at i + 0.5).
+        R_c2w_array: (V, 3, 3); centers_array: (V, 3, 1) camera centers.
+
+    Returns:
+        dict (i, j) with i < j -> (n, 3) float array of log a_i - log a_j.
+    """
+    rng = np.random.default_rng(seed)
+    n_views, h, w, _ = albedos.shape
+    cos_max = np.cos(np.radians(max_angle))
+    centers = centers_array.reshape(n_views, 3).astype(np.float64)
+    ratios = {}
+    for i in range(n_views):
+        ys, xs = np.where(masks[i])
+        if len(xs) == 0:
+            continue
+        pick = rng.choice(len(xs), min(n_samples, len(xs)), replace=False)
+        ys, xs = ys[pick], xs[pick]
+        pixels = np.stack([xs + 0.5, ys + 0.5, np.ones(len(xs))], axis=1)  # NeuS2 pixel centers
+        directions = (R_c2w_array[i] @ np.linalg.inv(K_array[i]) @ pixels.T).T
+        directions /= np.linalg.norm(directions, axis=1, keepdims=True)
+        origins = np.tile(centers[i], (len(directions), 1))
+        points, ray_ids, tri_ids = mesh.ray.intersects_location(origins, directions, multiple_hits=False)
+        if len(points) == 0:
+            continue
+        # face normals oriented towards camera i (independent of the mesh winding)
+        normals = mesh.face_normals[tri_ids]
+        to_i = centers[i] - points
+        to_i /= np.linalg.norm(to_i, axis=1, keepdims=True)
+        cos_i = np.einsum("ij,ij->i", normals, to_i)
+        normals *= np.sign(cos_i)[:, None]
+        keep = np.abs(cos_i) > cos_max
+        points, normals = points[keep], normals[keep]
+        albedo_i = albedos[i][ys[ray_ids[keep]], xs[ray_ids[keep]]]
+        good_i = np.all((albedo_i > MIN_ALBEDO) & (albedo_i < MAX_ALBEDO), axis=1)
+        points, normals, albedo_i = points[good_i], normals[good_i], albedo_i[good_i]
+        for j in range(n_views):
+            if j == i or len(points) == 0:
+                continue
+            to_j = centers[j] - points
+            dist_j = np.linalg.norm(to_j, axis=1)
+            to_j /= dist_j[:, None]
+            pts_cam = (R_c2w_array[j].T @ (points - centers[j]).T).T
+            front = pts_cam[:, 2] > 0
+            proj = (K_array[j] @ pts_cam.T).T
+            proj = proj[:, :2] / np.where(front, proj[:, 2], 1.0)[:, None] - 0.5  # -> pixel indices
+            ok = (front & (np.einsum("ij,ij->i", normals, to_j) > cos_max)
+                  & (proj[:, 0] >= 0) & (proj[:, 0] <= w - 1) & (proj[:, 1] >= 0) & (proj[:, 1] <= h - 1))
+            ok_ids = np.where(ok)[0]
+            if len(ok_ids) == 0:
+                continue
+            ui, vi = np.round(proj[ok_ids, 0]).astype(int), np.round(proj[ok_ids, 1]).astype(int)
+            ok_ids = ok_ids[masks[j][vi, ui]]
+            if len(ok_ids) == 0:
+                continue
+            # occlusion: the first hit of the ray towards camera j must be beyond the camera
+            eps = (1e-4 * dist_j[ok_ids])[:, None]
+            origins_j = points[ok_ids] + to_j[ok_ids] * eps
+            hits, hit_rays, _ = mesh.ray.intersects_location(origins_j, to_j[ok_ids], multiple_hits=False)
+            occluded = np.zeros(len(ok_ids), bool)
+            if len(hits):
+                hit_dist = np.linalg.norm(hits - origins_j[hit_rays], axis=1)
+                occluded[hit_rays[hit_dist < dist_j[ok_ids][hit_rays] - eps[hit_rays, 0]]] = True
+            ok_ids = ok_ids[~occluded]
+            if len(ok_ids) == 0:
+                continue
+            albedo_j = _bilinear(albedos[j], proj[ok_ids])
+            good = np.all((albedo_j > MIN_ALBEDO) & (albedo_j < MAX_ALBEDO), axis=1)
+            log_ratio = np.log(albedo_i[ok_ids[good]]) - np.log(albedo_j[good])
+            key, sign = ((i, j), 1.0) if i < j else ((j, i), -1.0)
+            ratios.setdefault(key, []).append(sign * log_ratio)
+    return {key: np.concatenate(parts) for key, parts in ratios.items()}
+
+
+def compute_albedo_scale_ratios(albedo_path, camera_source, mesh_path,
+                                n_samples=20000, max_angle=60.0,
+                                min_pair_samples=MIN_PAIR_SAMPLES,
+                                logger=None, return_report=False):
+    """Compute per-view albedo scaling ratios via multi-view consistency.
+
+    Args:
+        albedo_path: folder of albedo images (RGBA: the alpha channel is the mask), in the order of
+            list_albedo_names.
+        camera_source: transform.json, cameras.npz or SfMData of these images.
+        mesh_path: mesh in the camera world frame.
+        n_samples: masked pixels ray-cast per view.
+        max_angle: maximum viewing angle (degrees) of a surface point.
+        min_pair_samples: minimum number of samples for a view pair to constrain the scales.
+        return_report: also return a report dict (pairs, mismatch, unconstrained views).
+
+    Returns:
+        (n_views, 3) array of scale factors (arithmetic mean 1 over the views constrained by an overlap,
+        1 for the others), and the report if return_report.
     """
     def log(msg):
         if logger:
             logger.info(msg)
 
-    # Load albedos
-    list_names = sorted([
-        f for f in os.listdir(albedo_path)
-        if f.lower().endswith((".png", ".exr"))
-    ])
-    n_views = len(list_names)
-
-    log("Loading {} albedo images...".format(n_views))
+    list_names = list_albedo_names(albedo_path)
+    log("Loading {} albedo images...".format(len(list_names)))
     albedos, masks = [], []
     for name in list_names:
         albedo = load_image(os.path.join(albedo_path, name))
-        mask = albedo[:, :, 3] if albedo.shape[2] == 4 else np.ones(
-            albedo.shape[:2])
-        albedos.append(albedo[:, :, :3])
-        masks.append(mask)
-
+        masks.append(albedo[:, :, 3] > 0.5 if albedo.shape[2] == 4 else np.ones(albedo.shape[:2], bool))
+        albedos.append(np.ascontiguousarray(albedo[:, :, :3]))
     albedos = np.array(albedos)
     masks = np.array(masks)
-    n_views, h, w, _ = albedos.shape
+    n_views = len(list_names)
 
-    K_array, R_c2w_array, centers_array = load_cameras(
-        camera_source, list_names, logger)
+    K_array, R_c2w_array, centers_array = load_cameras(camera_source, list_names, logger)
 
     log("Loading mesh from {}...".format(mesh_path))
     mesh = trimesh.load_mesh(mesh_path)
 
-    ratios = np.zeros((n_views, n_samples, 3, 2), dtype=np.float32)
-    intersection_found = np.zeros((n_views, n_samples, 2), dtype=np.bool_)
-
-    log("Computing ratios between neighboring views...")
-    for cam_id in range(n_views):
-        log("Processing camera {}/{}...".format(cam_id, n_views))
-
-        mask = masks[cam_id].astype(bool)
-        ind_mask = np.where(mask)
-        # pixel centers in the NeuS2 convention of K (center of pixel i at i + 0.5)
-        pixels = np.stack([ind_mask[1], ind_mask[0]], axis=1) + 0.5
-        albedo_values = albedos[cam_id, ind_mask[0], ind_mask[1], :]
-
-        current_K = K_array[cam_id]
-        current_R_c2w = R_c2w_array[cam_id]
-        current_center = centers_array[cam_id]
-
-        n_good = min(n_samples, pixels.shape[0])
-        if n_good < n_samples:
-            log("Warning: only {} valid pixels in image {}".format(
-                n_good, cam_id))
-
-        ind = np.random.choice(pixels.shape[0], n_good, replace=False)
-        pixels = pixels[ind]
-        albedo_values = albedo_values[ind]
-
-        rays_origin = np.tile(current_center.T, (n_good, 1))
-        point_on_rays = (
-            current_R_c2w @ (
-                np.linalg.inv(current_K) @ np.concatenate(
-                    (pixels, np.ones((n_good, 1))), axis=1
-                ).T
-            ) + current_center
-        ).T
-        rays_direction = point_on_rays - rays_origin
-        rays_direction /= np.linalg.norm(
-            rays_direction, axis=1)[:, None]
-
-        locations, index_ray, _ = mesh.ray.intersects_location(
-            ray_origins=rays_origin,
-            ray_directions=rays_direction,
-            multiple_hits=False,
-        )
-
-        pixels = pixels[index_ray]
-        albedo_values = albedo_values[index_ray]
-
-        right_cam_id = (cam_id + 1) % n_views
-        left_cam_id = (cam_id - 1) % n_views
-
-        for kk, neigh_cam_id in enumerate([right_cam_id, left_cam_id]):
-            neighbor_K = K_array[neigh_cam_id]
-            neighbor_R_c2w = R_c2w_array[neigh_cam_id]
-            neighbor_center = centers_array[neigh_cam_id]
-
-            neighbor_rays_direction = neighbor_center.T - locations
-            neighbor_dists = np.linalg.norm(
-                neighbor_rays_direction, axis=1, keepdims=True)
-            neighbor_rays_direction = (
-                neighbor_rays_direction / neighbor_dists)
-            eps = np.maximum(neighbor_dists.flatten() * 1e-4, 1e-2)
-            neighbor_rays_origin = (
-                locations + eps[:, None] * neighbor_rays_direction)
-
-            hit_locs, hit_ray_idx, _ = mesh.ray.intersects_location(
-                ray_origins=neighbor_rays_origin,
-                ray_directions=neighbor_rays_direction,
-                multiple_hits=True,
-            )
-            hit = np.zeros(len(locations), dtype=bool)
-            if len(hit_locs) > 0:
-                hit_d = np.linalg.norm(
-                    hit_locs - neighbor_rays_origin[hit_ray_idx], axis=1)
-                blocked = hit_d < (
-                    neighbor_dists.flatten()[hit_ray_idx] - eps[hit_ray_idx])
-                for idx in hit_ray_idx[blocked]:
-                    hit[idx] = True
-
-            intersection_points = locations[~hit]
-            index_ray_kk = index_ray[~hit]
-            albedo_values_no_hit = albedo_values[~hit]
-
-            neighbor_R_w2c = neighbor_R_c2w.T
-            pts_cam = (
-                neighbor_R_w2c @ (intersection_points.T - neighbor_center)
-            )
-            pts_proj = (neighbor_K @ pts_cam).T
-            pts_proj /= pts_proj[:, 2][:, None]
-            # NeuS2 pixel coordinates (K) -> pixel indices of the interpolation grid
-            pts_proj = pts_proj[:, :2] - 0.5
-
-            valid = (
-                (0 <= pts_proj[:, 1]) & (pts_proj[:, 1] < h - 1)
-                & (0 <= pts_proj[:, 0]) & (pts_proj[:, 0] < w - 1)
-            )
-
-            pts_proj = pts_proj[valid]
-            index_ray_kk = index_ray_kk[valid]
-            albedo_valid = albedo_values_no_hit[valid]
-
-            alb_neigh = albedos[neigh_cam_id].astype(np.float32)
-            rows = np.arange(0, h, 1)
-            cols = np.arange(0, w, 1)
-            interpR = RegularGridInterpolator(
-                (rows, cols), alb_neigh[:, :, 0])
-            interpG = RegularGridInterpolator(
-                (rows, cols), alb_neigh[:, :, 1])
-            interpB = RegularGridInterpolator(
-                (rows, cols), alb_neigh[:, :, 2])
-
-            pts_yx = np.stack([pts_proj[:, 1], pts_proj[:, 0]], axis=1)
-            albedo_val = np.stack(
-                [interpR(pts_yx), interpG(pts_yx), interpB(pts_yx)],
-                axis=1)
-
-            zero_idx = np.any(albedo_val == 0, axis=1)
-            index_ray_kk = index_ray_kk[~zero_idx]
-            albedo_val = albedo_val[~zero_idx]
-            albedo_valid = albedo_valid[~zero_idx]
-
-            ratios[cam_id, index_ray_kk, :, kk] = (
-                albedo_valid / albedo_val)
-            intersection_found[cam_id, index_ray_kk, kk] = True
-
-    # Compute median ratios
-    log("Computing final scaling factors...")
-    median_ratios = np.zeros((n_views, 3))
-    right_ratios = ratios[:, :, :, 0]
-    right_ind = intersection_found[:, :, 0]
-    left_ratios = np.roll(ratios[:, :, :, 1], -1, axis=0)
-    left_ind = np.roll(intersection_found[:, :, 1], -1, axis=0)
-
-    for cam_id in range(n_views):
-        right_ratio = right_ratios[cam_id, right_ind[cam_id]]
-        left_ratio = 1 / left_ratios[cam_id, left_ind[cam_id]]
-        all_ratio = np.concatenate((right_ratio, left_ratio), axis=0)
-        median_ratios[cam_id] = np.median(all_ratio, axis=0)
-
-    median_ratio_prop = np.ones((n_views, 3))
-    for ii in range(n_views - 1):
-        median_ratio_prop[ii + 1] = (
-            median_ratio_prop[ii] * median_ratios[ii])
-
-    mean_prop = np.mean(median_ratio_prop, axis=0)
-    median_ratio_prop_norm = median_ratio_prop / mean_prop
-
-    log("Scale ratios: {}".format(median_ratio_prop_norm))
-    return median_ratio_prop_norm
+    log("Comparing the albedo of all the view pairs ({} samples per view)...".format(n_samples))
+    pair_log_ratios = collect_pair_log_ratios(mesh, albedos, masks, K_array, R_c2w_array, centers_array,
+                                              n_samples=n_samples, max_angle=max_angle)
+    scales, pairs, unconstrained = solve_pairwise_log_scales(pair_log_ratios, n_views, min_pair_samples)
+    constrained = [k for k in range(n_views) if k not in unconstrained]
+    if constrained:
+        # same albedo level as before the scaling: arithmetic mean 1 over the constrained views
+        scales[constrained] /= scales[constrained].mean(axis=0)
+    before, after = pair_mismatch(pairs, scales)
+    log("{} overlapping view pairs (>= {} samples); median pairwise albedo mismatch {:.1f}% -> {:.1f}%".format(
+        len(pairs), min_pair_samples, before, after))
+    if unconstrained:
+        log("WARNING: no overlap with the other views, scale kept at 1 for: {}".format(
+            ", ".join(list_names[k] for k in unconstrained)))
+    groups = [g for g in view_groups(n_views, [(i, j) for i, j, _, _ in pairs]) if len(g) > 1]
+    if len(groups) > 1:
+        log("WARNING: {} separate groups of overlapping views, scaled independently: {}".format(
+            len(groups), [[list_names[k] for k in g] for g in groups]))
+    log("Scale ratios: {}".format(scales))
+    if not return_report:
+        return scales
+    report = {
+        "names": list_names,
+        "scales": scales.tolist(),
+        "pairs": [{"views": [list_names[i], list_names[j]], "samples": n, "medianLogRatio": median.tolist()}
+                  for i, j, n, median in pairs],
+        "mismatchBeforePercent": round(before, 2),
+        "mismatchAfterPercent": round(after, 2),
+        "unconstrained": [list_names[k] for k in unconstrained],
+    }
+    return scales, report
 
 
 def scale_and_save_albedos(albedo_path, output_albedo_path, scale_ratios,
                            bit_depth=None, logger=None):
-    """Apply scaling to albedo images and save them."""
+    """Apply scaling to albedo images and save them.
+
+    The images keep the bit depth of the inputs (what the testbed reads), so scaled values above 1 are clipped;
+    the clipped fraction of the masked pixels is logged per view.
+    """
     def log(msg):
         if logger:
             logger.info(msg)
 
     os.makedirs(output_albedo_path, exist_ok=True)
 
-    list_names = sorted([
-        f for f in os.listdir(albedo_path)
-        if f.lower().endswith((".png", ".exr"))
-    ])
+    list_names = list_albedo_names(albedo_path)
 
     if bit_depth is None:
         first_path = os.path.join(albedo_path, list_names[0])
@@ -438,4 +508,7 @@ def scale_and_save_albedos(albedo_path, output_albedo_path, scale_ratios,
             albedo_to_save,
             os.path.join(output_albedo_path, name),
             bit_depth=bit_depth)
-        log("Saved {}/{}: {}".format(ii + 1, len(list_names), name))
+        inside = mask > 0.5
+        clipped = float(np.any(albedo_rgb[inside] > 1.0, axis=1).mean()) if inside.any() else 0.0
+        log("Saved {}/{}: {} (scale {}, {:.2f}% of the masked pixels clipped)".format(
+            ii + 1, len(list_names), name, np.round(scale_ratios[ii], 3).tolist(), 100.0 * clipped))
