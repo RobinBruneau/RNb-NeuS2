@@ -244,6 +244,11 @@ class RNbNeuS2(desc.Node):
 
             # Validate testbed path
             testbed_path = chunk.node.rnbNeuS2Path.evalValue
+            # config.json points to "testbed" for all platforms
+            if (os.name == "nt" and testbed_path
+                    and not os.path.exists(testbed_path)
+                    and os.path.exists(testbed_path + ".exe")):
+                testbed_path += ".exe"
             if not testbed_path or not os.path.exists(testbed_path):
                 raise RuntimeError(
                     "RNB_NEUS2_TESTBED_PATH not found. "
