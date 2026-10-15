@@ -1,0 +1,194 @@
+name: Meshroom Plugin Release
+
+# Build the headless testbed for Linux and Windows with the parameters you
+# choose, package it with the Meshroom plugin as a ready-to-use folder, and
+# attach one archive per OS to the Release tagged v<version>.
+# Everything build/packaging-specific is in tools/build_release.py.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version, tagged as v<version> (e.g. 2.0.0)
+        type: string
+        default: "2.0.0"
+        required: true
+      linux:
+        description: Build Linux archive
+        type: boolean
+        default: true
+      windows:
+        description: Build Windows archive
+        type: boolean
+        default: true
+      cuda:
+        # for linux must match an nvidia/cuda devel-rockylinux9 tag
+        description: CUDA version (e.g. 12.4.1)
+        type: string
+        default: "12.4.1"
+        required: true
+      cudaArch:
+        # 7.0 and lower disable the fully fused MLPs of tiny-cuda-nn
+        description: CUDA compute capability list (e.g. 7.5;8.0;8.6)
+        type: string
+        default: "7.5;8.0;8.6;8.9"
+        required: true
+      python:
+        # must match the Python of the Meshroom that loads the plugin
+        description: Python version of the bundled venv (e.g. 3.11)
+        type: string
+        default: "3.11"
+        required: true
+      prerelease:
+        description: Mark the Release as a pre-release
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    if: ${{ inputs.linux }}
+    runs-on: ubuntu-22.04
+    # Official NVIDIA image with nvcc and cuBLAS. Rocky Linux 9 (glibc 2.34)
+    # so the testbed also runs on EL9, not only on Ubuntu 22.04 and newer.
+    container: nvidia/cuda:${{ inputs.cuda }}-devel-rockylinux9
+    steps:
+      - name: Install build prerequisites
+        run: |
+          # mesa-libGL/glib2: runtime libs of opencv-python, for the venv import check
+          dnf install -y git gcc gcc-c++ make cmake python3 python3-pip mesa-libGL glib2
+          dnf clean all
+          python3 -m pip install uv
+      - uses: actions/checkout@v7
+      - name: Build and package
+        env:
+          VERSION: ${{ inputs.version }}
+          CUDA: ${{ inputs.cuda }}
+          CUDA_ARCH: ${{ inputs.cudaArch }}
+          PYTHON: ${{ inputs.python }}
+          OUTPUT_DIR: ${{ github.workspace }}/dist
+        run: python3 tools/build_release.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: plugin-linux
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          # the archive is already compressed
+          compression-level: 0
+
+  windows:
+    if: ${{ inputs.windows }}
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+      # No official CUDA container image exists for Windows, so install it
+      # directly from NVIDIA's own download server.
+      - name: Install CUDA Toolkit
+        env:
+          CUDA: ${{ inputs.cuda }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $verParts = $env:CUDA -split '\.'
+          $short = "$($verParts[0]).$($verParts[1])"
+          # curand is only used through its device headers (curand_kernel.h).
+          $componentNames = @('nvcc','cudart','cublas','cublas_dev','curand','curand_dev','thrust','visual_studio_integration')
+          # 'crt' (host_config.h etc.) and 'nvvm' (cicc, the device-code
+          # backend nvcc invokes for every .cu file) used to ship as part of
+          # 'nvcc' but CUDA 13.0 split them into their own installer
+          # components. Neither exists as a separate component pre-13.0, so
+          # only request them there.
+          if ([int]$verParts[0] -ge 13) { $componentNames += @('crt', 'nvvm') }
+          $components = $componentNames | ForEach-Object { "${_}_$short" }
+          $url = "https://developer.download.nvidia.com/compute/cuda/$env:CUDA/network_installers/cuda_${env:CUDA}_windows_network.exe"
+          $installer = "$env:RUNNER_TEMP\cuda_installer.exe"
+          Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
+          # No published checksum to pin per-version, so verify the binary is
+          # authentically signed by NVIDIA before running it elevated.
+          $sig = Get-AuthenticodeSignature -FilePath $installer
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'NVIDIA') {
+            throw "CUDA installer failed signature verification: status=$($sig.Status) signer=$($sig.SignerCertificate.Subject)"
+          }
+          $proc = Start-Process -FilePath $installer -ArgumentList (@('-s') + $components) -Wait -PassThru -NoNewWindow
+          if ($proc.ExitCode -ne 0) { throw "CUDA installer exited with code $($proc.ExitCode)" }
+          $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$short"
+          echo "CUDA_PATH=$cudaPath" >> $env:GITHUB_ENV
+          echo "$cudaPath\bin" >> $env:GITHUB_PATH
+      # Locates the MSVC toolchain via vswhere/vcvarsall
+      # and exports its env vars.
+      - name: Setup MSVC environment
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $installPath = & $vswhere -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath
+          if (-not $installPath) { throw 'MSVC C++ build tools not found' }
+          $vcvarsall = Join-Path $installPath 'VC\Auxiliary\Build\vcvarsall.bat'
+          cmd /c "`"$vcvarsall`" x64 && set" | ForEach-Object {
+            if ($_ -match '^([^=]+)=(.*)$') {
+              echo "$($matches[1])=$($matches[2])" >> $env:GITHUB_ENV
+            }
+          }
+      - name: Install uv
+        run: python -m pip install uv
+      - name: Build and package
+        env:
+          VERSION: ${{ inputs.version }}
+          CUDA: ${{ inputs.cuda }}
+          CUDA_ARCH: ${{ inputs.cudaArch }}
+          PYTHON: ${{ inputs.python }}
+          OUTPUT_DIR: ${{ github.workspace }}/dist
+        run: python tools/build_release.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: plugin-windows
+          path: dist/*.zip
+          if-no-files-found: error
+          # the archive is already compressed
+          compression-level: 0
+
+  publish:
+    needs: [linux, windows]
+    # Still runs if only one OS was built this run
+    # e.g. a Windows-only rebuild.
+    if: >-
+      always() && (needs.linux.result == 'success' || needs.windows.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      # merge-multiple + pattern: whichever of plugin-linux/plugin-windows
+      # exist this run land together in one flat artifacts/ dir.
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          pattern: plugin-*
+          merge-multiple: true
+      - name: Create or update the Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+          CUDA: ${{ inputs.cuda }}
+          CUDA_ARCH: ${{ inputs.cudaArch }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          releaseTag="v${VERSION}"
+          notes="**RNb-NeuS2 Meshroom plugin, prebuilt**
+          - **CUDA**: ${CUDA} (cuBLAS runtime bundled, only an NVIDIA driver is required)
+          - **CUDA compute capabilities**: ${CUDA_ARCH}
+          - **Build**: headless testbed (no GUI, no OptiX)
+
+          Each archive includes the plugin \`venv/\` for Python X.Y (\`-pyXY\` suffix):
+          pick the one matching your OS and the Python of your Meshroom, and extract
+          it in Meshroom \`plugins\` folder. Nothing else to install."
+          ls -l artifacts
+          createArgs=(--target "$GITHUB_SHA" --title "RNb-NeuS2 ${VERSION}" --notes "$notes")
+          if [ "$PRERELEASE" = "true" ]; then createArgs+=(--prerelease); fi
+          gh release view "$releaseTag" >/dev/null 2>&1 || \
+            gh release create "$releaseTag" "${createArgs[@]}"
+          gh release upload "$releaseTag" artifacts/* --clobber

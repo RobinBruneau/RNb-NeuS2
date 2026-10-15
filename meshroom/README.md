@@ -23,7 +23,10 @@ binary from this repository.
 
 1. **Build the testbed and install the package** — follow the
    [main README](../README.md#installation) (`cmake` build + `pip install -e .` in a
-   Python 3.10 environment).
+   Python 3.10 environment). Alternatively, extract a prebuilt archive from the
+   [Releases](../../../releases) page into Meshroom's `plugins` folder: it already
+   contains `build/testbed` and `venv/` (pick the `-pyXY` archive matching your
+   Meshroom's Python), so steps 2 and 3 can be skipped.
 
 2. **Expose the environment as the plugin `venv/`.** Meshroom looks for a `venv/`
    directory at the plugin root and adds its `site-packages` to `PYTHONPATH`.
