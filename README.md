@@ -209,9 +209,8 @@ from AliceVision SfMData inputs — no manual data conversion required.
    meshroom
    ```
 
-The path to the testbed is read from `meshroom/config.json`
-(`RNB_NEUS2_TESTBED_PATH`, default `../build/testbed`); adjust it if your build
-lives elsewhere.
+The path to the testbed is read from `[tool.meshroom]` in `pyproject.toml` (`RNB_NEUS2_TESTBED_PATH`, default `build/testbed`, `meshroom/config.json` for older Meshroom versions).
+Adjust it if your build lives elsewhere.
 
 **Use it:** drop an `RNbNeuS2` node in your graph, connect a normal-maps SfMData to
 `Normal Maps SfMData` (and, optionally, albedo/mask SfMData), then compute. The

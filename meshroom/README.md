@@ -38,15 +38,18 @@ binary from this repository.
      ln -s "$CONDA_PREFIX" venv
      ```
 
-3. **Point the node to the testbed.** The path is resolved from `config.json`:
-   ```json
-   [
-       {"key": "RNB_NEUS2_TESTBED_PATH", "type": "path", "value": "../build/testbed"}
-   ]
+3. **Point the node to the testbed.** The path is declared in the `[tool.meshroom]`
+   table of the root `pyproject.toml`:
+   ```toml
+   [tool.meshroom]
+   # Plugin testbed path, relative to the plugin root.
+   env = [ { key = "RNB_NEUS2_TESTBED_PATH", type = "path", value = "build/testbed" } ]
    ```
-   The default (`../build/testbed`, relative to this `meshroom/` folder) matches the
-   standard build location. Edit it if your testbed lives elsewhere. An environment
-   variable of the same name overrides this value.
+   The default (`build/testbed`, relative to the plugin root) matches the standard
+   build location. Edit it if your testbed lives elsewhere. Older Meshroom versions,
+   without `pyproject.toml` support, read `meshroom/config.json` instead (same entry,
+   value relative to the `meshroom/` folder). An environment variable of the same name
+   overrides both.
 
 4. **Register the plugin and launch Meshroom:**
    ```bash
@@ -75,7 +78,7 @@ binary from this repository.
 | `useL1` | L1 Norm | false | Use L1 color loss instead of L2. |
 | `useRgbPlus` | RGB+ | true | Enable the RGB+ reflectance-singularity correction. |
 | `useGpu` | Use GPU | true | Use GPU for training (CUDA required). |
-| `rnbNeuS2Path` | RNb-NeuS2 Testbed Path | `${RNB_NEUS2_TESTBED_PATH}` | Path to the testbed executable (advanced; from `config.json`). |
+| `rnbNeuS2Path` | RNb-NeuS2 Testbed Path | `${RNB_NEUS2_TESTBED_PATH}` | Path to the testbed executable (advanced; from `pyproject.toml`). |
 | `verboseLevel` | Verbose Level | `info` | Logging verbosity (`fatal`, `error`, `warning`, `info`, `debug`, `trace`). |
 
 ### Outputs
