@@ -163,7 +163,7 @@ class RNbNeuS2(desc.Node):
             name="rnbNeuS2Path",
             label="RNb-NeuS2 Testbed Path",
             description="Path to the RNb-NeuS2 testbed executable. "
-                        "Set via config.json key RNB_NEUS2_TESTBED_PATH.",
+                        "Set via the RNB_NEUS2_TESTBED_PATH entry in pyproject.toml.",
             value="${RNB_NEUS2_TESTBED_PATH}",
             advanced=True,
         ),
@@ -242,17 +242,27 @@ class RNbNeuS2(desc.Node):
                     raise RuntimeError(
                         "Mask folder not found: {}".format(mask_folder))
 
-            # Validate testbed path
-            testbed_path = chunk.node.rnbNeuS2Path.evalValue
-            if not testbed_path or not os.path.exists(testbed_path):
-                raise RuntimeError(
-                    "RNB_NEUS2_TESTBED_PATH not found. "
-                    "Set it in config.json. Got: '{}'".format(testbed_path))
-
-            # Ensure rnb_neus2 package is importable
             repo_root = os.path.dirname(
                 os.path.dirname(
                     os.path.dirname(os.path.abspath(__file__))))
+
+            # Validate testbed path
+            testbed_path = chunk.node.rnbNeuS2Path.evalValue
+            # Meshroom leaves the path relative when it does not exist as is,
+            # e.g. "build/testbed" on Windows: resolve it from the plugin root
+            if testbed_path and not os.path.isabs(testbed_path):
+                testbed_path = os.path.join(repo_root, testbed_path)
+            # The plugin metadata points to "testbed" for all platforms
+            if (os.name == "nt" and testbed_path
+                    and not os.path.exists(testbed_path)
+                    and os.path.exists(testbed_path + ".exe")):
+                testbed_path += ".exe"
+            if not testbed_path or not os.path.exists(testbed_path):
+                raise RuntimeError(
+                    "RNB_NEUS2_TESTBED_PATH not found. Set it in pyproject.toml. "
+                    "Got: '{}'".format(testbed_path))
+
+            # Ensure rnb_neus2 package is importable
             if repo_root not in sys.path:
                 sys.path.insert(0, repo_root)
 
