@@ -4210,7 +4210,22 @@ void Testbed::compute_mesh_vertex_colors() {
 		GPUMatrix<float> positions_matrix((float*)coords.data(), floats_per_coord, n_verts);
 		GPUMatrix<float> color_matrix(mlp_out.data(), 7, n_verts);
 		linear_kernel(generate_nerf_network_inputs_from_positions, 0, m_inference_stream, n_verts, m_aabb, m_mesh.verts.data(), PitchedPtr<NerfCoordinate>((NerfCoordinate*)coords.data(), 1, 0, extra_stride), extra_dims_gpu);
-		m_network->inference(m_inference_stream, positions_matrix, color_matrix);
+		// Evaluate the network in chunks of at most 1<<20 vertices, exactly like
+		// get_density_on_grid() below ("Only process 1m elements at a time").
+		// A single un-chunked GEMM over every vertex exceeds an internal CUTLASS
+		// launch limit once the marching-cubes mesh is large enough (observed at
+		// ~10.3 M vertices, res 1024: "Got cutlass error: Error Internal at: 346"),
+		// which leaves the CUDA context in a sticky error state ("cudaFree failed
+		// with error invalid argument" flood) and loses the mesh export.
+		// Column slices of the same buffers keep the 7 x n_verts output layout
+		// identical, so extract_srgb_with_activation() below is unchanged.
+		const uint32_t batch_size = std::min(n_verts, 1u<<20);
+		for (uint32_t offset = 0; offset < n_verts; offset += batch_size) {
+			const uint32_t local_batch_size = std::min(n_verts - offset, batch_size);
+			GPUMatrix<float> positions_batch = positions_matrix.slice_cols(offset, local_batch_size);
+			GPUMatrix<float> color_batch = color_matrix.slice_cols(offset, local_batch_size);
+			m_network->inference(m_inference_stream, positions_batch, color_batch);
+		}
 		linear_kernel(extract_srgb_with_activation, 0, m_inference_stream, n_verts * 3, 3, mlp_out.data(), (float*)m_mesh.vert_colors.data(), m_nerf.rgb_activation, m_nerf.training.linear_colors);
 	}
 }
