@@ -5,7 +5,7 @@ All dataloaders return a standardized dict:
     {
         "views": [
             {
-                "c2w": np.array (4, 4),      camera-to-world, Y/Z-flipped
+                "c2w": np.array (4, 4),      camera-to-world (OpenCV camera axes), in the pose frame
                 "K": np.array (4, 4),         intrinsic matrix, NeuS2 pixel convention
                 "normal_path": str,           path to normal image
                 "albedo_path": str or None,   path to albedo image
@@ -15,11 +15,20 @@ All dataloaders return a standardized dict:
             },
             ...
         ],
-        "landmarks": np.array (N, 3) or None,   Y/Z-flipped 3D points
+        "landmarks": np.array (N, 3) or None,   3D points in the pose frame
         "image_width": int,
         "image_height": int,
-        "scale_mat": np.array (4, 4) or None,   RNb format only
+        "scale_mat": np.array (4, 4) or None,   pose frame -> world (None: identity)
     }
+
+Output frame: the exported mesh is in the WORLD frame of the input cameras, whatever the loader. "scale_mat" maps
+the pose frame of "c2w" and "landmarks" to that world; prepare_testbed_data composes it with its own normalization
+into the "n2w" of transform.json, which the testbed applies to the mesh. The world is:
+
+- RNb / IDR (cameras.npz): the frame of world_mat. The poses come pre-normalized (P = world_mat @ scale_mat), so
+  "scale_mat" is the IDR scale_mat;
+- SfMData (.sfm, .abc, .json): the SfMData frame flipped in Y and Z (diag(1, -1, -1), as AliceVision meshes).
+  The loaders flip the poses and the landmarks, so "scale_mat" is None.
 """
 
 from abc import ABC, abstractmethod

@@ -3,7 +3,6 @@ from os.path import join
 import numpy as np
 import os
 import cv2
-import torch
 from glob import glob
 import shutil
 
@@ -66,13 +65,18 @@ class Dataset:
             P = world_mat @ scale_mat
             P = P[:3, :4]
             intrinsics, pose = load_K_Rt_from_P(None, P)
-            self.intrinsics_all.append(torch.from_numpy(intrinsics).float())
-            self.pose_all.append(torch.from_numpy(pose).float())
+            self.intrinsics_all.append(intrinsics.astype(np.float32))
+            self.pose_all.append(pose.astype(np.float32))
 
-        self.intrinsics_all = torch.stack(self.intrinsics_all)   # [n_images, 4, 4]
-        self.intrinsics_all_inv = torch.inverse(self.intrinsics_all)  # [n_images, 4, 4]
+        self.intrinsics_all = np.stack(self.intrinsics_all)   # [n_images, 4, 4]
+        self.intrinsics_all_inv = np.linalg.inv(self.intrinsics_all)  # [n_images, 4, 4]
         self.focal = self.intrinsics_all[0][0, 0]
-        self.pose_all = torch.stack(self.pose_all)  # [n_images, 4, 4]
+        self.pose_all = np.stack(self.pose_all)  # [n_images, 4, 4]
+        # The poses are in the normalized frame of scale_mat: n2w (normalized -> world) lets the testbed export the
+        # mesh in the frame of world_mat
+        assert all(np.array_equal(m, self.scale_mats_np[0]) for m in self.scale_mats_np), \
+            "the views must share the same scale_mat"
+        self.n2w = self.scale_mats_np[0]
 
         print('Load data: End')
 
@@ -147,6 +151,7 @@ def generate(dataset_name, base_par_dir, copy_image=True, is_downsample=False, d
             0.5
         ],
         "from_na": True,
+        "n2w": dataset.n2w.tolist(),
     }
     
     for frame_i in range(1):
@@ -186,6 +191,7 @@ def generate(dataset_name, base_par_dir, copy_image=True, is_downsample=False, d
             0.5
         ],
         "from_na": True,
+        "n2w": dataset.n2w.tolist(),
     }
     
     for frame_i in range(1):

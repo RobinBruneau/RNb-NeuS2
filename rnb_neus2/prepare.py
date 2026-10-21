@@ -232,14 +232,10 @@ def prepare_testbed_data(data, output_folder, logger,
     logger.info("Processed {} frames".format(len(frames)))
 
     # Write transform.json
-    # n2w maps the testbed's normalized frame back to world coords; the C++
-    # applies it at mesh export (marching_cubes.cu: p = n2w_s*p + n2w_t).
-    # inv(scale_matrix) only undoes the scaling computed here. For loaders that
-    # PRE-normalize the poses (rnb_loader: P = world_mat @ scale_mat), the
-    # original world transform lives in data["scale_mat"] and must be composed
-    # back in, else the exported mesh stays in the loader's normalized frame
-    # instead of world space. SfM loaders return scale_mat=None (poses already
-    # world), so inv(scale_matrix) alone is already correct there.
+    # n2w maps the testbed's normalized frame back to the world (see the output frame in dataloaders/base.py); the
+    # testbed applies it to the exported mesh. inv(scale_matrix) undoes the normalization computed here, and the
+    # loader's "scale_mat" (pose frame -> world) is composed back in: the IDR loader pre-normalizes its poses
+    # (P = world_mat @ scale_mat), the SfMData loaders return scale_mat=None (poses already in the world).
     n2w = np.linalg.inv(scale_matrix)
     loader_scale_mat = data.get("scale_mat")
     if loader_scale_mat is not None:

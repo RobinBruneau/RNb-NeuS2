@@ -192,7 +192,9 @@ def load_cameras_from_transform_json(json_path, albedo_images, logger=None):
 
         c2w = np.array(frame["transform_matrix"], dtype=np.float64)
         if n2w is not None:
+            # n2w is a similarity: the rotation is its linear part divided by its scale
             c2w = n2w @ c2w
+            c2w[:3, :3] /= np.cbrt(np.linalg.det(n2w[:3, :3]))
 
         R_c2w = c2w[:3, :3].astype(np.float32)
         center = c2w[:3, [3]].astype(np.float32)
