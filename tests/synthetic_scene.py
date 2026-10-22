@@ -205,7 +205,7 @@ def world_cameras(transform):
     n2w (identity if absent) is the normalized -> world similarity."""
     n2w = np.array(transform.get("n2w", np.eye(4)), dtype=np.float64)
     A = n2w[:3, :3]
-    s = np.cbrt(np.linalg.det(A))
+    s = np.cbrt(abs(np.linalg.det(A)))  # scale magnitude: a reflection must not reverse the viewing direction
     Rs, Cs = [], []
     for frame in transform["frames"]:
         T = np.array(frame["transform_matrix"], dtype=np.float64)

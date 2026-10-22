@@ -102,9 +102,34 @@ def test_albedo_scaling_cameras_are_rigid(scene, tmp_path):
     np.testing.assert_allclose(R, np.array(scene.R_c2w), atol=1e-5)
 
 
+def test_albedo_scaling_cameras_reflected_n2w(scene, tmp_path):
+    """An orientation-reversing n2w (det < 0) keeps the world cameras looking forward, as the C++ mesh export does."""
+    from rnb_neus2.albedo_scaling import load_cameras_from_transform_json
+    folder = write_idr(scene, str(tmp_path / "idr"), SCALE_MAT)
+    tj = _prepare(load_data(folder), tmp_path / "prep", "silhouettes")
+    F = np.diag([-1.0, 1.0, 1.0, 1.0])  # reflection of the normalized frame (F = F^-1)
+    tj["n2w"] = (np.array(tj["n2w"]) @ F).tolist()
+    for frame in tj["frames"]:
+        frame["transform_matrix"] = (F @ np.array(frame["transform_matrix"])).tolist()
+    path = tmp_path / "prep" / "transform_reflected.json"
+    with open(path, "w") as f:
+        json.dump(tj, f)
+    names = ["{:05d}.png".format(i) for i in range(len(scene.C))]
+    _, R, C = load_cameras_from_transform_json(str(path), names)
+    np.testing.assert_allclose(C[:, :, 0], np.array(scene.C), atol=1e-2)
+    np.testing.assert_allclose(R, np.array(scene.R_c2w), atol=1e-5)
+
+
 def test_world_cameras_helper(scene):
-    """Self-check of the helper: a rotated normalized frame, with and without from_na (NeRF camera axes)."""
-    G = similarity(55.0, rotation(0.5, 1.0, -0.4), (10.0, 20.0, -30.0))
+    """Self-check of the helper: a rotated (or reflected) normalized frame, with and without from_na (NeRF axes)."""
+    for reflect in (False, True):
+        G = similarity(55.0, rotation(0.5, 1.0, -0.4), (10.0, 20.0, -30.0))
+        if reflect:
+            G = G @ np.diag([-1.0, 1.0, 1.0, 1.0])
+        _check_helper(scene, G)
+
+
+def _check_helper(scene, G):
     Ginv = np.linalg.inv(G)
     for from_na in (True, False):
         frames = []
