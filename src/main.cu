@@ -409,13 +409,25 @@ int main(int argc, char** argv) {
         testbed.save_each(get(save_each_flag));
     }
 
-    // Get the scene path and construct output path
-    std::string scene_path_str = get(scene_flag);
-    // Remove trailing slash if present
-    if (scene_path_str.back() == '/') {
-        scene_path_str.pop_back();
+    // Output folder: <scene>/output, or the snapshot's folder when only a snapshot is given (mesh export from a
+    // snapshot: the snapshot stores n2w, so the mesh is in the world frame as well)
+    fs::path output_path;
+    if (scene_flag) {
+        std::string scene_path_str = get(scene_flag);
+        // Remove trailing slash if present
+        if (!scene_path_str.empty() && scene_path_str.back() == '/') {
+            scene_path_str.pop_back();
+        }
+        output_path = fs::path(scene_path_str) / "output";
+    } else if (snapshot_flag) {
+        output_path = fs::path(get(snapshot_flag)).parent_path();
+        if (output_path.str().empty()) {
+            output_path = fs::path(".");
+        }
+    } else {
+        tlog::error() << "--scene or --snapshot is required.";
+        return 1;
     }
-    fs::path output_path = fs::path(scene_path_str) / "output";
 
     // Build mesh filename in output folder
     static char obj_filename_buf[256] = "";

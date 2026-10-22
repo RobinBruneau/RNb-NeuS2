@@ -46,10 +46,7 @@ void save_mesh(
 	tcnn::GPUMemory<uint32_t>& indices,
 	const char* outputname,
 	bool unwrap_it,
-	float nerf_scale,
-	Eigen::Vector3f nerf_offset,
-	float n2w_s,
-	Eigen::Vector3f n2w_t,
+	const Eigen::Matrix<float, 3, 4>& to_world = Eigen::Matrix<float, 3, 4>::Identity(),
 	bool invert_normals=false
 );
 

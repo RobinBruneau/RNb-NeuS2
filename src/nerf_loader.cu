@@ -517,6 +517,29 @@ NerfDataset load_nerf(const std::vector<filesystem::path>& jsonpaths, float shar
 			result.scale = 1.f/length;
 			result.offset = { ((float(aabb[1][0])+float(aabb[0][0]))*0.5f)*-result.scale + 0.5f , ((float(aabb[1][1])+float(aabb[0][1]))*0.5f)*-result.scale + 0.5f,((float(aabb[1][2])+float(aabb[0][2]))*0.5f)*-result.scale + 0.5f};
 		}
+		if (json.contains("n2w")) {
+			// Normalized -> world map of the poses below (3x4, or 4x4 with a last row 0 0 0 1), applied to the meshes
+			const auto& n2w = json["n2w"];
+			if (!n2w.is_array() || (n2w.size() != 3 && n2w.size() != 4)) {
+				throw std::runtime_error{"n2w must be a 3x4 or 4x4 matrix"};
+			}
+			for (int m = 0; m < 3; ++m) {
+				if (!n2w[m].is_array() || n2w[m].size() != 4) {
+					throw std::runtime_error{"n2w must be a 3x4 or 4x4 matrix"};
+				}
+				for (int n = 0; n < 4; ++n) {
+					result.n2w(m, n) = float(n2w[m][n]);
+				}
+			}
+			if (n2w.size() == 4 && !(float(n2w[3][0]) == 0.f && float(n2w[3][1]) == 0.f && float(n2w[3][2]) == 0.f && float(n2w[3][3]) == 1.f)) {
+				throw std::runtime_error{"n2w is not affine: its last row must be 0 0 0 1"};
+			}
+			if (std::abs(result.n2w.block<3, 3>(0, 0).determinant()) < 1e-20f) {
+				throw std::runtime_error{"n2w is singular"};
+			}
+			tlog::info() << "n2w (normalized -> world):\n" << result.n2w;
+		}
+
 		if (json.contains("frames") && json["frames"].is_array()) {
 			for (int j = 0; j < json["frames"].size(); ++j) {
 				auto& frame = json["frames"][j];
@@ -571,12 +594,6 @@ NerfDataset load_nerf(const std::vector<filesystem::path>& jsonpaths, float shar
 			result.xforms[i_img].start = result.nerf_matrix_to_ngp(result.xforms[i_img].start);
 			result.xforms[i_img].end = result.nerf_matrix_to_ngp(result.xforms[i_img].end);
 
-			if (json.contains("n2w")) {
-				for (int m = 0; m < 3; ++m) {
-					result.n2w_t(m) = float(json["n2w"][m][3]);
-				}
-				result.n2w_s = float(json["n2w"][0][0]);
-			}	
 
 			//////////////////////////////////////////////////////////////////////////////////////
 			/// NORMAL IMAGE
