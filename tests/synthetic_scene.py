@@ -149,21 +149,31 @@ def write_sfm_json(scene, folder, landmarks=True):
             "sensorWidth": str(sensor), "sensorHeight": str(sensor * scene.height / scene.width),
             "focalLength": repr(float(scene.K[0, 0] * sensor / scene.width)),
             "principalPoint": [repr(float(scene.K[0, 2] - scene.width / 2.0 - 0.5)),
-                               repr(float(scene.K[1, 2] - scene.height / 2.0 - 0.5))]}
+                               repr(float(scene.K[1, 2] - scene.height / 2.0 - 0.5))],
+            # remaining fields required by AliceVision's own reader (pyalicevision)
+            "serialNumber": "synthetic", "initializationMode": "unknown", "initialFocalLength": "-1",
+            "pixelRatio": "1", "pixelRatioLocked": "true", "offsetLocked": "false", "scaleLocked": "false",
+            "distortionInitializationMode": "none", "distortionParams": "", "undistortionOffset": ["0", "0"],
+            "undistortionParams": "", "distortionType": "none", "undistortionType": "none", "locked": "false"}
     views, poses = [], []
     for i in range(len(scene.C)):
         pid = str(1000 + i)
         n_cv, mask = scene.render(i)
         _write_rgb16(os.path.join(normal_dir, "{}.png".format(pid)), _normal_png(n_cv, mask))
         cv2.imwrite(os.path.join(mask_dir, "{}.png".format(pid)), mask.astype(np.uint8) * 255)
-        views.append({"viewId": pid, "poseId": pid, "intrinsicId": "1", "path": "normals/{}.png".format(pid)})
+        views.append({"viewId": pid, "poseId": pid, "frameId": str(i), "intrinsicId": "1",
+                      # absolute, as Meshroom writes them (the pyalicevision loader does not resolve relative paths)
+                      "path": os.path.abspath(os.path.join(normal_dir, "{}.png".format(pid))),
+                      "width": str(scene.width), "height": str(scene.height)})
         R_raw = FLIP_YZ @ scene.R_c2w[i]
         poses.append({"poseId": pid, "pose": {"transform": {
             "rotation": [repr(float(x)) for x in R_raw.reshape(-1)],
-            "center": [repr(float(x)) for x in FLIP_YZ @ scene.C[i]]}}})
-    data = {"version": ["1", "2", "8"], "views": views, "intrinsics": [intr], "poses": poses}
+            "center": [repr(float(x)) for x in FLIP_YZ @ scene.C[i]]}, "locked": "false"}})
+    data = {"version": ["1", "2", "12"], "featuresFolders": [], "matchesFolders": [], "views": views,
+            "intrinsics": [intr], "poses": poses}
     if landmarks:
-        data["structure"] = [{"landmarkId": str(k), "X": [repr(float(x)) for x in FLIP_YZ @ p]}
+        data["structure"] = [{"landmarkId": str(k), "descType": "sift", "color": ["255", "255", "255"],
+                              "X": [repr(float(x)) for x in FLIP_YZ @ p], "observations": []}
                              for k, p in enumerate(scene.surface_points())]
     sfm_path = os.path.join(folder, "sfm.json")
     with open(sfm_path, "w") as f:
