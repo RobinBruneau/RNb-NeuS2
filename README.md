@@ -180,6 +180,26 @@ The compiled `./build/testbed` can be driven manually for custom experiments
 --no-rgbplus            # Disable the reflectance-singularity correction
 ```
 
+`--snapshot FILE` without `--scene` exports the mesh of a saved snapshot (with
+`--no-train --save-mesh`) next to the snapshot.
+
+### Output frame
+
+The mesh is always exported in the **world frame of the input cameras**, whatever
+the input:
+
+- `cameras.npz` (IDR): the frame of `world_mat` (the `scale_mat` normalization is undone);
+- SfMData (`.sfm`, `.abc`, `.json`, Meshroom node): the SfMData frame flipped in Y and Z,
+  i.e. the frame of the meshes of AliceVision (Meshing, Texturing);
+- a hand-written `transform.json`: the frame given by its `n2w` (identity if absent).
+
+`n2w` is the affine map (3x4, or 4x4 with a last row `0 0 0 1`) from the frame of the
+`transform_matrix` poses to the world; the Python pipeline writes it from the loader
+and its scene normalization. The testbed applies all of it (rotation included) to the
+exported vertices and normals, undoes its internal axis cycle when `from_na` is absent,
+and stores `n2w` in the snapshots. Tests: `tests/test_world_frame.py` (CPU) and
+`tests/gpu/check_world_frame.py` (GPU, trains on a synthetic ellipsoid through every route).
+
 ## Meshroom Plugin
 
 RNb-NeuS2 ships a [Meshroom](https://github.com/alicevision/Meshroom) node,

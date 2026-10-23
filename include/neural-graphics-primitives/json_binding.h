@@ -154,6 +154,7 @@ inline void to_json(nlohmann::json& j, const NerfDataset& dataset) {
 	//to_json(j["rolling_shutter"], dataset.rolling_shutter);
 	j["from_mitsuba"] = dataset.from_mitsuba;
 	j["from_na"] = dataset.from_na;
+	to_json(j["n2w"], dataset.n2w);
 	j["is_hdr"] = dataset.is_hdr;
 	j["wants_importance_sampling"] = dataset.wants_importance_sampling;
 }
@@ -183,6 +184,8 @@ inline void from_json(const nlohmann::json& j, NerfDataset& dataset) {
 			from_json(ji.at("camera_distortion"),dataset.metadata_normal[i].camera_distortion);
 		}
 	}
+	// The albedo images share the cameras of the normal images; their pixels are not in the snapshot
+	dataset.metadata_albedo = dataset.metadata_normal;
 	dataset.render_aabb = j.at("render_aabb");
 	from_json(j.at("up"), dataset.up);
 	from_json(j.at("offset"), dataset.offset);
@@ -193,6 +196,9 @@ inline void from_json(const nlohmann::json& j, NerfDataset& dataset) {
 	dataset.aabb_scale = j.at("aabb_scale");
 	dataset.from_mitsuba = j.at("from_mitsuba");
 	dataset.from_na = j.at("from_na");
+	if (j.contains("n2w")) {
+		from_json(j.at("n2w"), dataset.n2w);
+	}
 	dataset.is_hdr = j.value("is_hdr", false);
 	if (j.contains("wants_importance_sampling")) {
 		dataset.wants_importance_sampling = j.at("wants_importance_sampling");

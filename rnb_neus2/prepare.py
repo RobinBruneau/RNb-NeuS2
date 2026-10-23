@@ -232,7 +232,14 @@ def prepare_testbed_data(data, output_folder, logger,
     logger.info("Processed {} frames".format(len(frames)))
 
     # Write transform.json
+    # n2w maps the testbed's normalized frame back to the world (see the output frame in dataloaders/base.py); the
+    # testbed applies it to the exported mesh. inv(scale_matrix) undoes the normalization computed here, and the
+    # loader's "scale_mat" (pose frame -> world) is composed back in: the IDR loader pre-normalizes its poses
+    # (P = world_mat @ scale_mat), the SfMData loaders return scale_mat=None (poses already in the world).
     n2w = np.linalg.inv(scale_matrix)
+    loader_scale_mat = data.get("scale_mat")
+    if loader_scale_mat is not None:
+        n2w = np.asarray(loader_scale_mat, dtype=np.float32) @ n2w
     transform_data = {
         "w": image_width,
         "h": image_height,

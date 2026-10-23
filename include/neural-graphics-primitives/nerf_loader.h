@@ -97,8 +97,9 @@ struct NerfDataset {
 	Eigen::Vector3f up = {0.0f, 1.0f, 0.0f};
 	Eigen::Vector3f offset = {0.0f, 0.0f, 0.0f};
 
-	float n2w_s = 1;
-	Eigen::Vector3f n2w_t = {0.0f, 0.0f, 0.0f};
+	// "n2w" of transform.json: affine map from the frame of its poses (the normalized scene) to the world frame of
+	// the input cameras. The exported meshes are mapped to the world with it (ngp_to_world()).
+	Eigen::Matrix<float, 3, 4> n2w = Eigen::Matrix<float, 3, 4>::Identity();
 
 	size_t n_images = 0;
 	size_t n_lights = 0;
@@ -219,6 +220,23 @@ struct NerfDataset {
 		result.col(1) *= -1;
 		result.col(2) *= -1;
 		result.col(3) = (result.col(3) - offset) / scale;
+		return result;
+	}
+
+	// Affine map from the testbed (NGP) space to the world: inverse of the position part of nerf_matrix_to_ngp
+	// (offset, scale and, without from_na / from_mitsuba, the axis cycle xyz<-yzx), then n2w.
+	Eigen::Matrix<float, 3, 4> ngp_to_world() const {
+		Eigen::Matrix3f ngp_to_nerf = Eigen::Matrix3f::Identity() / scale;
+		if (!from_na && !from_mitsuba) {
+			// nerf = (ngp.z, ngp.x, ngp.y) / scale
+			ngp_to_nerf << 0, 0, 1,
+			               1, 0, 0,
+			               0, 1, 0;
+			ngp_to_nerf /= scale;
+		}
+		Eigen::Matrix<float, 3, 4> result;
+		result.block<3, 3>(0, 0) = n2w.block<3, 3>(0, 0) * ngp_to_nerf;
+		result.col(3) = n2w.col(3) - n2w.block<3, 3>(0, 0) * (offset / scale);
 		return result;
 	}
 

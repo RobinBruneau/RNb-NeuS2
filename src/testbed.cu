@@ -374,9 +374,7 @@ void Testbed::compute_and_save_marching_cubes_mesh(const char* filename, Vector3
 	marching_cubes(res3d, aabb, thresh);
 	if ((m_testbed_mode == ETestbedMode::Nerf)){
 		save_mesh(m_mesh.verts, m_mesh.vert_normals, m_mesh.vert_colors, m_mesh.indices, filename, unwrap_it,
-		 m_nerf.training.dataset.scale, m_nerf.training.dataset.offset,
-		 m_nerf.training.dataset.n2w_s, m_nerf.training.dataset.n2w_t, 
-		 m_nerf.training.dataset.from_na);
+		 m_nerf.training.dataset.ngp_to_world(), m_nerf.training.dataset.from_na);
 	}
 }
 
@@ -1031,9 +1029,7 @@ void Testbed::imgui() {
 				ImGui::InputText("##OBJFile", obj_filename_buf, sizeof(obj_filename_buf));
 				if (ImGui::Button("Save it!")) {
 					save_mesh(m_mesh.verts, m_mesh.vert_normals, m_mesh.vert_colors, m_mesh.indices, obj_filename_buf, m_mesh.unwrap,
-								m_nerf.training.dataset.scale, m_nerf.training.dataset.offset,
-								m_nerf.training.dataset.n2w_s, m_nerf.training.dataset.n2w_t, 
-								m_nerf.training.dataset.from_na);
+								m_nerf.training.dataset.ngp_to_world(), m_nerf.training.dataset.from_na);
 				}
 				ImGui::SameLine();
 				ImGui::Text("Mesh has %d triangles\n", tricount);
