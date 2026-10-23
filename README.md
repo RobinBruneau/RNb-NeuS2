@@ -36,6 +36,11 @@ a C++14 compiler) apply here as well. Our build steps mirror theirs.
 [OptiX](https://developer.nvidia.com/rtx/ray-tracing/optix) is optional — if found it
 enables hardware ray tracing, but the project compiles fine without it.
 
+> **Prebuilt releases.** The [Releases](../../releases) page provides Linux and Windows
+> archives with a headless `testbed` already built (CUDA runtime bundled, no GUI, no
+> OptiX) and the plugin `venv/` for Python X.Y (`-pyXY` suffix). Pick the one matching
+> your OS and your Meshroom's Python, and extract it into Meshroom's `plugins` folder.
+
 **1. Clone the repository**
 
 All C++/CUDA dependencies are vendored under `dependencies/`, so a plain clone is
@@ -224,9 +229,8 @@ from AliceVision SfMData inputs — no manual data conversion required.
    meshroom
    ```
 
-The path to the testbed is read from `meshroom/config.json`
-(`RNB_NEUS2_TESTBED_PATH`, default `../build/testbed`); adjust it if your build
-lives elsewhere.
+The path to the testbed is read from `[tool.meshroom]` in `pyproject.toml` (`RNB_NEUS2_TESTBED_PATH`, default `build/testbed`, `meshroom/config.json` for older Meshroom versions).
+Adjust it if your build lives elsewhere.
 
 **Use it:** drop an `RNbNeuS2` node in your graph, connect a normal-maps SfMData to
 `Normal Maps SfMData` (and, optionally, albedo/mask SfMData), then compute. The

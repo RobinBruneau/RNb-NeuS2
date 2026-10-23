@@ -216,7 +216,7 @@ public:
 			auto component_name = j[0].get<std::string>();
 			std::string target_string = "density_network";
 			if (m_optimize_params_components.contains(component_name)) {
-				m_n_weights_optimize_cpu[i].second = m_optimize_params_components[component_name].get<bool>();
+				m_n_weights_optimize_cpu[i].second = m_optimize_params_components[component_name].template get<bool>();
 			}
 			i++;
 		}
@@ -260,7 +260,7 @@ public:
 			m_n_weights_optimize_cpu[i].second = true;
 			auto component_name = j[0].get<std::string>();
 			if (m_optimize_params_components.contains(component_name)) {
-				if (m_optimize_params_components[component_name].get<bool>() == false) {
+				if (m_optimize_params_components[component_name].template get<bool>() == false) {
 					m_n_weights_optimize_cpu[i].second = false;
 				}
 			}

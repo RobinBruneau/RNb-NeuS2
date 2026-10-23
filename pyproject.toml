@@ -28,3 +28,7 @@ py-modules = ["run_pipeline"]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["rnb_neus2", "rnb_neus2.*"]
+
+[tool.meshroom]
+# Plugin testbed path, relative to the plugin root.
+env = [ { key = "RNB_NEUS2_TESTBED_PATH", type = "path", value = "build/testbed" } ]
