@@ -531,6 +531,9 @@ NerfDataset load_nerf(const std::vector<filesystem::path>& jsonpaths, float shar
 					result.n2w(m, n) = float(n2w[m][n]);
 				}
 			}
+			if (n2w.size() == 4 && (!n2w[3].is_array() || n2w[3].size() != 4)) {
+				throw std::runtime_error{"n2w must be a 3x4 or 4x4 matrix"};
+			}
 			if (n2w.size() == 4 && !(float(n2w[3][0]) == 0.f && float(n2w[3][1]) == 0.f && float(n2w[3][2]) == 0.f && float(n2w[3][3]) == 1.f)) {
 				throw std::runtime_error{"n2w is not affine: its last row must be 0 0 0 1"};
 			}
