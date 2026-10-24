@@ -1,7 +1,7 @@
 """Full RNb-NeuS2 pipeline orchestration.
 
 Handles: load data -> prepare -> testbed -> albedo scaling -> testbed.
-Can be called from CLI (run_pipeline.py) or Meshroom plugin.
+Can be called from CLI (run_pipeline.py) or from the mrRNbNeuS2 Meshroom plugin.
 """
 
 import os

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "rnb-neus2"
 version = "2.0.1"
-description = "RNb-NeuS2 reconstruction pipeline and Meshroom plugin"
+description = "RNb-NeuS2 reconstruction pipeline"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -28,7 +28,3 @@ py-modules = ["run_pipeline"]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["rnb_neus2", "rnb_neus2.*"]
-
-[tool.meshroom]
-# Plugin testbed path, relative to the plugin root.
-env = [ { key = "RNB_NEUS2_TESTBED_PATH", type = "path", value = "build/testbed" } ]

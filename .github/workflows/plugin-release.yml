@@ -1,7 +1,8 @@
 name: Meshroom Plugin Release
 
 # Build the headless testbed for Linux and Windows with the parameters you
-# choose, package it with the Meshroom plugin as a ready-to-use folder, and
+# choose, package it as a ready-to-use folder for the mrRNbNeuS2 Meshroom
+# plugin (https://github.com/meshroomHub/mrRNbNeuS2) and the command line, and
 # attach one archive per OS to the Release tagged v<version>.
 # Everything build/packaging-specific is in tools/build_release.py.
 
@@ -34,7 +35,7 @@ on:
         default: "7.5;8.0;8.6;8.9"
         required: true
       python:
-        # must match the Python of the Meshroom that loads the plugin
+        # Python of the bundled venv/, for command-line use
         description: Python version of the bundled venv (e.g. 3.11)
         type: string
         default: "3.11"
@@ -178,14 +179,17 @@ jobs:
         run: |
           set -euo pipefail
           releaseTag="v${VERSION}"
-          notes="**RNb-NeuS2 Meshroom plugin, prebuilt**
+          notes="**RNb-NeuS2 testbed, prebuilt**
           - **CUDA**: ${CUDA} (cuBLAS runtime bundled, only an NVIDIA driver is required)
           - **CUDA compute capabilities**: ${CUDA_ARCH}
           - **Build**: headless testbed (no GUI, no OptiX)
 
-          Each archive includes the plugin \`venv/\` for Python X.Y (\`-pyXY\` suffix):
-          pick the one matching your OS and the Python of your Meshroom, and extract
-          it in Meshroom \`plugins\` folder. Nothing else to install."
+          **Meshroom**: install the [mrRNbNeuS2](https://github.com/meshroomHub/mrRNbNeuS2) plugin,
+          then extract the archive matching your OS into the plugin folder (see its README).
+
+          **Command line**: each archive also includes \`rnb_neus2\`, \`run_pipeline.py\` and a
+          \`venv/\` for Python X.Y (\`-pyXY\` suffix). On Linux, rebind the venv to a local
+          Python first: \`uv venv --allow-existing --python X.Y RNb-NeuS2/venv\`."
           ls -l artifacts
           createArgs=(--target "$GITHUB_SHA" --title "RNb-NeuS2 ${VERSION}" --notes "$notes")
           if [ "$PRERELEASE" = "true" ]; then createArgs+=(--prerelease); fi
