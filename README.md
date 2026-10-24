@@ -17,7 +17,8 @@ Using Normal and Reflectance Cues</h1>
 > [!TIP]
 > **🆕 RNb-NeuS2 is now available as a Meshroom node!**
 > Run the full pipeline (prepare → scale → train → mesh) directly inside
-> [Meshroom](https://github.com/alicevision/Meshroom) from SfMData inputs — see the
+> [Meshroom](https://github.com/alicevision/Meshroom) from SfMData inputs with the
+> [mrRNbNeuS2](https://github.com/meshroomHub/mrRNbNeuS2) plugin — see the
 > [Meshroom Plugin](#meshroom-plugin) section.
 
 ## Table of Contents
@@ -38,8 +39,9 @@ enables hardware ray tracing, but the project compiles fine without it.
 
 > **Prebuilt releases.** The [Releases](../../releases) page provides Linux and Windows
 > archives with a headless `testbed` already built (CUDA runtime bundled, no GUI, no
-> OptiX) and the plugin `venv/` for Python X.Y (`-pyXY` suffix). Pick the one matching
-> your OS and your Meshroom's Python, and extract it into Meshroom's `plugins` folder.
+> OptiX), the `rnb_neus2` package and a `venv/` for Python X.Y (`-pyXY` suffix). For
+> Meshroom, extract the archive into the [mrRNbNeuS2](https://github.com/meshroomHub/mrRNbNeuS2)
+> plugin folder (see its README).
 
 **1. Clone the repository**
 
@@ -66,8 +68,7 @@ The Python side (data preparation, scene scaling, albedo scaling and pipeline
 orchestration) lives in the `rnb_neus2` package. Use either a plain `venv` or conda.
 
 *Option A — `venv` (no conda).* Create the environment as a `venv/` directory at the
-repository root. This is also exactly what the [Meshroom plugin](#meshroom-plugin)
-expects, so no extra symlink is needed later:
+repository root:
 
 ```bash
 python3.10 -m venv venv
@@ -207,37 +208,22 @@ and stores `n2w` in the snapshots. Tests: `tests/test_world_frame.py` (CPU) and
 
 ## Meshroom Plugin
 
-RNb-NeuS2 ships a [Meshroom](https://github.com/alicevision/Meshroom) node,
-**`RNbNeuS2`**, that runs the entire pipeline (prepare → scale → train → mesh)
-from AliceVision SfMData inputs — no manual data conversion required.
+The [Meshroom](https://github.com/alicevision/Meshroom) node **`RNbNeuS2`** lives in
+its own plugin, [**mrRNbNeuS2**](https://github.com/meshroomHub/mrRNbNeuS2). It runs
+the entire pipeline (prepare → scale → train → mesh) from AliceVision SfMData inputs —
+no manual data conversion required — and outputs the reconstructed `mesh.obj` in
+world coordinates (and, with albedos, the harmonized albedo maps for texturing).
 
-**Install (3 steps):**
+**Install:**
 
-1. Build the testbed and create the Python environment (see [Installation](#installation)).
-2. Make the package importable inside Meshroom as the plugin `venv/`. Meshroom expects
-   a `venv/` directory at the plugin root and adds it to its Python path.
-   - If you used **Option A (`venv`)**, you already have `venv/` at the repository
-     root — nothing to do.
-   - If you used **Option B (conda)**, symlink the conda environment from the
-     **repository root**, with it active:
-     ```bash
-     ln -s "$CONDA_PREFIX" venv
-     ```
-3. Register the plugin and start Meshroom:
-   ```bash
-   export MESHROOM_PLUGINS_PATH=/path/to/RNb-NeuS2
-   meshroom
-   ```
+1. Install the `mrRNbNeuS2` plugin from Meshroom's plugin manager: it creates the
+   plugin environment and installs this repository's `rnb_neus2` package in it.
+2. Extract the [prebuilt release](../../releases) matching your OS into the plugin
+   folder, or point `RNB_NEUS2_TESTBED_PATH` to your own `build/testbed`.
 
-The path to the testbed is read from `[tool.meshroom]` in `pyproject.toml` (`RNB_NEUS2_TESTBED_PATH`, default `build/testbed`, `meshroom/config.json` for older Meshroom versions).
-Adjust it if your build lives elsewhere.
-
-**Use it:** drop an `RNbNeuS2` node in your graph, connect a normal-maps SfMData to
-`Normal Maps SfMData` (and, optionally, albedo/mask SfMData), then compute. The
-node outputs the reconstructed `mesh.obj` in world coordinates.
-
-📖 Full node reference (all inputs/outputs, CLI equivalents): see
-[`meshroom/README.md`](meshroom/README.md).
+📖 Installation details and full node reference (all inputs/outputs, texturing,
+command-line equivalent): see the
+[mrRNbNeuS2 README](https://github.com/meshroomHub/mrRNbNeuS2#readme).
 
 ## Acknowledgements & Citation
 
