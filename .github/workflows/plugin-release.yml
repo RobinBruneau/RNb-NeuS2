@@ -207,8 +207,15 @@ jobs:
           **Meshroom plugin**
 
           To run RNb-NeuS2 as a Meshroom node, install the [mrRNbNeuS2](https://github.com/meshroomHub/mrRNbNeuS2)
-          plugin from Meshroom's plugin manager, then extract this archive into the plugin folder, so that the
-          testbed is found at \`mrRNbNeuS2/RNb-NeuS2/build/testbed\` (see the plugin README)."
+          plugin from Meshroom's plugin manager, then extract this archive inside the \`mrRNbNeuS2/\` folder the
+          plugin manager created (in Meshroom's \`plugins\` folder, or \`MESHROOM_LOCAL_PLUGINS_PATH\`):
+
+          \`\`\`bash
+          cd /path/to/plugins/mrRNbNeuS2
+          tar xzf RNb-NeuS2-${VERSION}-linux-x86_64-*.tar.gz   # gives mrRNbNeuS2/RNb-NeuS2/build/testbed
+          \`\`\`
+
+          The node finds the testbed there by default (see the plugin README)."
           ls -l artifacts
           createArgs=(--target "$GITHUB_SHA" --title "RNb-NeuS2 ${VERSION}" --notes "$notes")
           if [ "$PRERELEASE" = "true" ]; then createArgs+=(--prerelease); fi
