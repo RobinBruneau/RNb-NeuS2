@@ -1,7 +1,8 @@
 name: Meshroom Plugin Release
 
 # Build the headless testbed for Linux and Windows with the parameters you
-# choose, package it with the Meshroom plugin as a ready-to-use folder, and
+# choose, package it as a ready-to-use folder for the mrRNbNeuS2 Meshroom
+# plugin (https://github.com/meshroomHub/mrRNbNeuS2) and the command line, and
 # attach one archive per OS to the Release tagged v<version>.
 # Everything build/packaging-specific is in tools/build_release.py.
 
@@ -34,7 +35,7 @@ on:
         default: "7.5;8.0;8.6;8.9"
         required: true
       python:
-        # must match the Python of the Meshroom that loads the plugin
+        # Python of the bundled venv/, for command-line use
         description: Python version of the bundled venv (e.g. 3.11)
         type: string
         default: "3.11"
@@ -174,18 +175,69 @@ jobs:
           VERSION: ${{ inputs.version }}
           CUDA: ${{ inputs.cuda }}
           CUDA_ARCH: ${{ inputs.cudaArch }}
+          PYTHON: ${{ inputs.python }}
           PRERELEASE: ${{ inputs.prerelease }}
         run: |
           set -euo pipefail
           releaseTag="v${VERSION}"
-          notes="**RNb-NeuS2 Meshroom plugin, prebuilt**
+          cudaFlat="cu$(echo "$CUDA" | cut -d. -f1-2 | tr -d .)"  # 12.4.1 -> cu124, as in tools/build_release.py
+          pyFlat="py$(echo "$PYTHON" | cut -d. -f1-2 | tr -d .)"  # 3.11 -> py311
+          notes="**RNb-NeuS2 ${VERSION}, prebuilt**
           - **CUDA**: ${CUDA} (cuBLAS runtime bundled, only an NVIDIA driver is required)
           - **CUDA compute capabilities**: ${CUDA_ARCH}
           - **Build**: headless testbed (no GUI, no OptiX)
 
-          Each archive includes the plugin \`venv/\` for Python X.Y (\`-pyXY\` suffix):
-          pick the one matching your OS and the Python of your Meshroom, and extract
-          it in Meshroom \`plugins\` folder. Nothing else to install."
+          Each archive extracts to a ready-to-use \`RNb-NeuS2/\` folder: the testbed (\`build/testbed\`, \`build\testbed.exe\` on
+          Windows, with \`configs/\` and \`utils/\` next to it), the \`rnb_neus2\` Python package, \`run_pipeline.py\` and a \`venv/\`
+          for Python ${PYTHON}. Pick the archive matching your OS.
+
+          **Quick start**
+
+          The venv interpreter link points to the build machine: rebind it once to a local Python ${PYTHON} with
+          [uv](https://docs.astral.sh/uv/) (the packages are kept, nothing is downloaded again).
+
+          Linux:
+
+          \`\`\`bash
+          tar xzf RNb-NeuS2-${VERSION}-linux-x86_64-${cudaFlat}-${pyFlat}.tar.gz
+          uv venv --allow-existing --python ${PYTHON} RNb-NeuS2/venv
+          RNb-NeuS2/venv/bin/python RNb-NeuS2/run_pipeline.py \\
+              --input normals.sfm --testbed RNb-NeuS2/build/testbed --output out
+          \`\`\`
+
+          Windows (PowerShell):
+
+          \`\`\`powershell
+          Expand-Archive RNb-NeuS2-${VERSION}-windows-x86_64-${cudaFlat}-${pyFlat}.zip -DestinationPath .
+          uv venv --allow-existing --python ${PYTHON} RNb-NeuS2\venv
+          RNb-NeuS2\venv\Scripts\python.exe RNb-NeuS2\run_pipeline.py \`
+              --input normals.sfm --testbed RNb-NeuS2\build\testbed.exe --output out
+          \`\`\`
+
+          With reflectance maps, add \`--has-albedo --albedo-sfm albedos.sfm\` (and \`--mask-sfm masks.sfm\` or
+          \`--mask-folder masks/\`). Input formats, options and output frame: see the
+          [README](https://github.com/${GH_REPO}#training).
+
+          **Meshroom plugin**
+
+          To run RNb-NeuS2 as a Meshroom node, install the [mrRNbNeuS2](https://github.com/meshroomHub/mrRNbNeuS2) plugin
+          from Meshroom's plugin manager, then extract this archive inside the \`mrRNbNeuS2/\` folder the plugin manager created
+          (in Meshroom's \`plugins\` folder, or \`MESHROOM_LOCAL_PLUGINS_PATH\`). The node finds the testbed there by default
+          (see the plugin README).
+
+          Linux:
+
+          \`\`\`bash
+          cd /path/to/plugins/mrRNbNeuS2
+          tar xzf /path/to/RNb-NeuS2-${VERSION}-linux-x86_64-${cudaFlat}-${pyFlat}.tar.gz   # gives mrRNbNeuS2/RNb-NeuS2/build/testbed
+          \`\`\`
+
+          Windows (PowerShell):
+
+          \`\`\`powershell
+          cd C:\path\to\plugins\mrRNbNeuS2
+          Expand-Archive C:\path\to\RNb-NeuS2-${VERSION}-windows-x86_64-${cudaFlat}-${pyFlat}.zip -DestinationPath .   # gives mrRNbNeuS2\RNb-NeuS2\build\testbed.exe
+          \`\`\`"
           ls -l artifacts
           createArgs=(--target "$GITHUB_SHA" --title "RNb-NeuS2 ${VERSION}" --notes "$notes")
           if [ "$PRERELEASE" = "true" ]; then createArgs+=(--prerelease); fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the testbed and package the Meshroom plugin as a release archive.
+"""Build the testbed and package it as a release archive.
 
 One script for both Linux and Windows. Run by the linux / windows jobs in
 .github/workflows/plugin-release.yml with these environment variables:
@@ -10,9 +10,9 @@ One script for both Linux and Windows. Run by the linux / windows jobs in
     OUTPUT_DIR  directory to leave the finished archive in
     PYTHON      Python version of the bundled venv/  e.g. 3.11
 
-Steps: build a headless testbed (no GUI, no OptiX), stage a ready-to-use plugin
+Steps: build a headless testbed (no GUI, no OptiX), stage a ready-to-use
 folder, bundle the CUDA runtime libraries next to the binary, check that the
-binary resolves them, create the plugin venv/ with uv, and archive the folder
+binary resolves them, create the venv/ with uv, and archive the folder
 into ``OUTPUT_DIR``.
 
 Pass ``--skip-build`` to package an already built ``build/testbed``.
@@ -33,10 +33,10 @@ PLUGIN_NAME = "RNb-NeuS2"
 IS_WINDOWS = os.name == "nt"
 TESTBED_NAME = "testbed.exe" if IS_WINDOWS else "testbed"
 
-# The testbed looks for configs/ and utils/ next to its parent directory, and
-# the Meshroom node imports rnb_neus2 from two levels above itself, so the
-# repository layout is kept as is.
-PLUGIN_DIRS = ["configs", "utils", "rnb_neus2", "meshroom"]
+# The testbed looks for configs/ and utils/ next to its parent directory, so the
+# repository layout is kept as is. rnb_neus2 and run_pipeline.py are shipped for
+# command-line use; the Meshroom node lives in meshroomHub/mrRNbNeuS2.
+PLUGIN_DIRS = ["configs", "utils", "rnb_neus2"]
 PLUGIN_FILES = ["run_pipeline.py", "pyproject.toml", "setup.py", "README.md", "LICENSE.txt"]
 
 # Shared libraries copied next to the testbed on Linux (matched on the SONAME).
@@ -200,12 +200,12 @@ def bundle_windows(bin_dir):
 
 
 def build_venv(plugin_dir, python):
-    """Create the plugin venv/ with the Python dependencies of rnb_neus2."""
+    """Create the venv/ with the Python dependencies of rnb_neus2."""
     venv = plugin_dir / "venv"
     # A uv-managed (standalone) Python, so any version can be picked on any runner.
     run(["uv", "venv", "--relocatable", "--python-preference", "only-managed",
          "--python", python, venv])
-    # Only the dependencies of pyproject.toml: the node imports rnb_neus2 from the plugin root.
+    # Only the dependencies of pyproject.toml: run_pipeline.py imports rnb_neus2 from the archive root.
     run(["uv", "pip", "install", "--python", venv, "--link-mode", "copy",
          "-r", REPO_ROOT / "pyproject.toml"])
 
