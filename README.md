@@ -39,7 +39,7 @@ enables hardware ray tracing, but the project compiles fine without it.
 
 > **Prebuilt releases.** The [Releases](../../releases) page provides Linux and Windows
 > archives with a headless `testbed` already built (CUDA runtime bundled, no GUI, no
-> OptiX), the `rnb_neus2` package and a `venv/` for Python X.Y (`-pyXY` suffix). For
+> OptiX): extract it at the root of your clone to skip step 2, then follow step 3. For
 > Meshroom, extract the archive into the [mrRNbNeuS2](https://github.com/meshroomHub/mrRNbNeuS2)
 > plugin folder (see its README).
 

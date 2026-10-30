@@ -1,9 +1,9 @@
 name: Meshroom Plugin Release
 
 # Build the headless testbed for Linux and Windows with the parameters you
-# choose, package it as a ready-to-use folder for the mrRNbNeuS2 Meshroom
-# plugin (https://github.com/meshroomHub/mrRNbNeuS2) and the command line, and
-# attach one archive per OS to the Release tagged v<version>.
+# choose, package it (testbed only, the Python side stays in the repository) for
+# the mrRNbNeuS2 Meshroom plugin (https://github.com/meshroomHub/mrRNbNeuS2) and
+# the command line, and attach one archive per OS to the Release tagged v<version>.
 # Everything build/packaging-specific is in tools/build_release.py.
 
 on:
@@ -24,21 +24,16 @@ on:
         default: true
       cuda:
         # for linux must match an nvidia/cuda devel-rockylinux9 tag
-        description: CUDA version (e.g. 12.4.1)
+        description: CUDA version (e.g. 12.8.1)
         type: string
-        default: "12.4.1"
+        default: "12.8.1"
         required: true
       cudaArch:
-        # 7.0 and lower disable the fully fused MLPs of tiny-cuda-nn
+        # 7.0 and lower disable the fully fused MLPs of tiny-cuda-nn;
+        # 12.0 (RTX 50xx) needs CUDA 12.8 or newer
         description: CUDA compute capability list (e.g. 7.5;8.0;8.6)
         type: string
-        default: "7.5;8.0;8.6;8.9"
-        required: true
-      python:
-        # Python of the bundled venv/, for command-line use
-        description: Python version of the bundled venv (e.g. 3.11)
-        type: string
-        default: "3.11"
+        default: "7.5;8.0;8.6;8.9;9.0;12.0"
         required: true
       prerelease:
         description: Mark the Release as a pre-release
@@ -58,17 +53,14 @@ jobs:
     steps:
       - name: Install build prerequisites
         run: |
-          # mesa-libGL/glib2: runtime libs of opencv-python, for the venv import check
-          dnf install -y git gcc gcc-c++ make cmake python3 python3-pip mesa-libGL glib2
+          dnf install -y git gcc gcc-c++ make cmake python3
           dnf clean all
-          python3 -m pip install uv
       - uses: actions/checkout@v7
       - name: Build and package
         env:
           VERSION: ${{ inputs.version }}
           CUDA: ${{ inputs.cuda }}
           CUDA_ARCH: ${{ inputs.cudaArch }}
-          PYTHON: ${{ inputs.python }}
           OUTPUT_DIR: ${{ github.workspace }}/dist
         run: python3 tools/build_release.py
       - uses: actions/upload-artifact@v7
@@ -135,14 +127,11 @@ jobs:
               echo "$($matches[1])=$($matches[2])" >> $env:GITHUB_ENV
             }
           }
-      - name: Install uv
-        run: python -m pip install uv
       - name: Build and package
         env:
           VERSION: ${{ inputs.version }}
           CUDA: ${{ inputs.cuda }}
           CUDA_ARCH: ${{ inputs.cudaArch }}
-          PYTHON: ${{ inputs.python }}
           OUTPUT_DIR: ${{ github.workspace }}/dist
         run: python tools/build_release.py
       - uses: actions/upload-artifact@v7
@@ -175,43 +164,44 @@ jobs:
           VERSION: ${{ inputs.version }}
           CUDA: ${{ inputs.cuda }}
           CUDA_ARCH: ${{ inputs.cudaArch }}
-          PYTHON: ${{ inputs.python }}
           PRERELEASE: ${{ inputs.prerelease }}
         run: |
           set -euo pipefail
           releaseTag="v${VERSION}"
           cudaFlat="cu$(echo "$CUDA" | cut -d. -f1-2 | tr -d .)"  # 12.4.1 -> cu124, as in tools/build_release.py
-          pyFlat="py$(echo "$PYTHON" | cut -d. -f1-2 | tr -d .)"  # 3.11 -> py311
-          notes="**RNb-NeuS2 ${VERSION}, prebuilt**
-          - **CUDA**: ${CUDA} (cuBLAS runtime bundled, only an NVIDIA driver is required)
+          notes="**RNb-NeuS2 ${VERSION}, prebuilt testbed**
+          - **CUDA**: ${CUDA} (cuBLAS runtime bundled, only an NVIDIA driver supporting CUDA 12 is required; 570 or newer for
+            RTX 50xx GPUs)
           - **CUDA compute capabilities**: ${CUDA_ARCH}
           - **Build**: headless testbed (no GUI, no OptiX)
 
-          Each archive extracts to a ready-to-use \`RNb-NeuS2/\` folder: the testbed (\`build/testbed\`, \`build\testbed.exe\` on
-          Windows, with \`configs/\` and \`utils/\` next to it), the \`rnb_neus2\` Python package, \`run_pipeline.py\` and a \`venv/\`
-          for Python ${PYTHON}. Pick the archive matching your OS.
+          Each archive extracts to a \`RNb-NeuS2/\` folder that holds the compiled testbed only: \`build/testbed\`
+          (\`build\testbed.exe\` on Windows) with its CUDA libraries, and the \`configs/\` and \`utils/\` it reads next to
+          \`build/\`. The Python side (\`rnb_neus2\`, \`run_pipeline.py\`) is in the repository. Pick the archive matching your OS.
 
-          **Quick start**
+          **Command line**
 
-          The venv interpreter link points to the build machine: rebind it once to a local Python ${PYTHON} with
-          [uv](https://docs.astral.sh/uv/) (the packages are kept, nothing is downloaded again).
+          Clone this release, extract the archive next to the clone (it adds \`build/\` to the \`RNb-NeuS2/\` folder; \`configs/\`
+          and \`utils/\` are the same files), then run the pipeline with [uv](https://docs.astral.sh/uv/), which installs the
+          Python dependencies on the first run (or use a plain venv / conda, see the
+          [README](https://github.com/${GH_REPO}#installation)).
 
           Linux:
 
           \`\`\`bash
-          tar xzf RNb-NeuS2-${VERSION}-linux-x86_64-${cudaFlat}-${pyFlat}.tar.gz
-          uv venv --allow-existing --python ${PYTHON} RNb-NeuS2/venv
-          RNb-NeuS2/venv/bin/python RNb-NeuS2/run_pipeline.py \\
-              --input normals.sfm --testbed RNb-NeuS2/build/testbed --output out
+          git clone --depth 1 --branch v${VERSION} https://github.com/${GH_REPO}.git RNb-NeuS2
+          tar xzf RNb-NeuS2-${VERSION}-linux-x86_64-${cudaFlat}.tar.gz
+          cd RNb-NeuS2
+          uv run run_pipeline.py --input normals.sfm --testbed build/testbed --output out
           \`\`\`
 
           Windows (PowerShell):
 
           \`\`\`powershell
-          Expand-Archive RNb-NeuS2-${VERSION}-windows-x86_64-${cudaFlat}-${pyFlat}.zip -DestinationPath .
-          uv venv --allow-existing --python ${PYTHON} RNb-NeuS2\venv
-          RNb-NeuS2\venv\Scripts\python.exe RNb-NeuS2\run_pipeline.py \`
-              --input normals.sfm --testbed RNb-NeuS2\build\testbed.exe --output out
+          git clone --depth 1 --branch v${VERSION} https://github.com/${GH_REPO}.git RNb-NeuS2
+          Expand-Archive RNb-NeuS2-${VERSION}-windows-x86_64-${cudaFlat}.zip -DestinationPath . -Force
+          cd RNb-NeuS2
+          uv run run_pipeline.py --input normals.sfm --testbed build\testbed.exe --output out
           \`\`\`
 
           With reflectance maps, add \`--has-albedo --albedo-sfm albedos.sfm\` (and \`--mask-sfm masks.sfm\` or
@@ -229,14 +219,14 @@ jobs:
 
           \`\`\`bash
           cd /path/to/plugins/mrRNbNeuS2
-          tar xzf /path/to/RNb-NeuS2-${VERSION}-linux-x86_64-${cudaFlat}-${pyFlat}.tar.gz   # gives mrRNbNeuS2/RNb-NeuS2/build/testbed
+          tar xzf /path/to/RNb-NeuS2-${VERSION}-linux-x86_64-${cudaFlat}.tar.gz   # gives mrRNbNeuS2/RNb-NeuS2/build/testbed
           \`\`\`
 
           Windows (PowerShell):
 
           \`\`\`powershell
           cd C:\path\to\plugins\mrRNbNeuS2
-          Expand-Archive C:\path\to\RNb-NeuS2-${VERSION}-windows-x86_64-${cudaFlat}-${pyFlat}.zip -DestinationPath .   # gives mrRNbNeuS2\RNb-NeuS2\build\testbed.exe
+          Expand-Archive C:\path\to\RNb-NeuS2-${VERSION}-windows-x86_64-${cudaFlat}.zip -DestinationPath .   # gives mrRNbNeuS2\RNb-NeuS2\build\testbed.exe
           \`\`\`"
           ls -l artifacts
           createArgs=(--target "$GITHUB_SHA" --title "RNb-NeuS2 ${VERSION}" --notes "$notes")

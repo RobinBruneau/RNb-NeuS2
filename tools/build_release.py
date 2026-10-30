@@ -8,12 +8,10 @@ One script for both Linux and Windows. Run by the linux / windows jobs in
     CUDA        CUDA version installed on runner   e.g. 12.4.1
     CUDA_ARCH   SM list (';' / ',' / space)        e.g. 7.5;8.0;8.6;8.9
     OUTPUT_DIR  directory to leave the finished archive in
-    PYTHON      Python version of the bundled venv/  e.g. 3.11
 
 Steps: build a headless testbed (no GUI, no OptiX), stage a ready-to-use
 folder, bundle the CUDA runtime libraries next to the binary, check that the
-binary resolves them, create the venv/ with uv, and archive the folder
-into ``OUTPUT_DIR``.
+binary resolves them, and archive the folder into ``OUTPUT_DIR``.
 
 Pass ``--skip-build`` to package an already built ``build/testbed``.
 """
@@ -34,10 +32,11 @@ IS_WINDOWS = os.name == "nt"
 TESTBED_NAME = "testbed.exe" if IS_WINDOWS else "testbed"
 
 # The testbed looks for configs/ and utils/ next to its parent directory, so the
-# repository layout is kept as is. rnb_neus2 and run_pipeline.py are shipped for
-# command-line use; the Meshroom node lives in meshroomHub/mrRNbNeuS2.
-PLUGIN_DIRS = ["configs", "utils", "rnb_neus2"]
-PLUGIN_FILES = ["run_pipeline.py", "pyproject.toml", "setup.py", "README.md", "LICENSE.txt"]
+# repository layout is kept as is. Only the compiled testbed is shipped: the Python
+# side (rnb_neus2, run_pipeline.py) comes from the repository, or from the
+# meshroomHub/mrRNbNeuS2 plugin, which installs rnb_neus2 in its own venv.
+PLUGIN_DIRS = ["configs", "utils"]
+PLUGIN_FILES = ["README.md", "LICENSE.txt"]
 
 # Shared libraries copied next to the testbed on Linux (matched on the SONAME).
 LINUX_BUNDLED_PREFIXES = ("libcublas", "libcudart", "libgomp")
@@ -199,20 +198,6 @@ def bundle_windows(bin_dir):
     subprocess.run(["dumpbin", "/dependents", str(bin_dir / TESTBED_NAME)], check=False)
 
 
-def build_venv(plugin_dir, python):
-    """Create the venv/ with the Python dependencies of rnb_neus2."""
-    venv = plugin_dir / "venv"
-    # A uv-managed (standalone) Python, so any version can be picked on any runner.
-    run(["uv", "venv", "--relocatable", "--python-preference", "only-managed",
-         "--python", python, venv])
-    # Only the dependencies of pyproject.toml: run_pipeline.py imports rnb_neus2 from the archive root.
-    run(["uv", "pip", "install", "--python", venv, "--link-mode", "copy",
-         "-r", REPO_ROOT / "pyproject.toml"])
-
-    venv_python = venv / ("Scripts/python.exe" if IS_WINDOWS else "bin/python")
-    run([venv_python, "-c", "import numpy, cv2, trimesh, scipy, embreex"])
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--skip-build", action="store_true",
@@ -222,15 +207,13 @@ def main():
     version = require_env("VERSION")
     cuda = require_env("CUDA")
     output_dir = Path(require_env("OUTPUT_DIR")).resolve()
-    python = require_env("PYTHON")
 
     if not args.skip_build:
         build(require_env("CUDA_ARCH"))
 
     cuda_flat = "cu" + "".join(cuda.split(".")[:2])  # 12.4.1 -> cu124
-    python_flat = "py" + "".join(python.split(".")[:2])  # 3.11 -> py311
     platform_tag = "windows-x86_64" if IS_WINDOWS else "linux-x86_64"
-    archive_base = output_dir / f"{PLUGIN_NAME}-{version}-{platform_tag}-{cuda_flat}-{python_flat}"
+    archive_base = output_dir / f"{PLUGIN_NAME}-{version}-{platform_tag}-{cuda_flat}"
 
     with tempfile.TemporaryDirectory() as stage_root:
         plugin_dir = stage_plugin(Path(stage_root).resolve())
@@ -238,7 +221,6 @@ def main():
             bundle_windows(plugin_dir / "build")
         else:
             bundle_linux(plugin_dir / "build")
-        build_venv(plugin_dir, python)
 
         output_dir.mkdir(parents=True, exist_ok=True)
         archive = shutil.make_archive(str(archive_base), "zip" if IS_WINDOWS else "gztar",
